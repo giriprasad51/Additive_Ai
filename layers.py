@@ -1,0 +1,87 @@
+import torch
+import torch.nn as nn
+
+
+# For Conv2d
+
+class OutputChannelSplitConv2d(nn.Module):
+    """
+        # Example Usage
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        conv = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1).to(device)
+        parallel_conv = OutputChannelSplitConv2d(conv, num_splits=4).to(device)  # Ensure it's on the same device
+
+        # Test with a dummy input
+        x = torch.randn(1, 3, 32, 32).to(device)
+        output = parallel_conv(x)
+        print("Output shape:", output.shape)
+    """
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4):
+        super(OutputChannelSplitConv2d, self).__init__()
+        assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
+
+        self.device = conv_layer.weight.device  # Ensure the same device
+        self.num_splits = num_splits
+        self.in_channels = conv_layer.in_channels
+        self.out_channels = conv_layer.out_channels
+        self.kernel_size = conv_layer.kernel_size
+        self.stride = conv_layer.stride
+        self.padding = conv_layer.padding
+        self.split_channels = self.out_channels // num_splits
+
+        self.split_layers = nn.ModuleList([
+            nn.Conv2d(self.in_channels, self.split_channels, kernel_size=self.kernel_size,
+                      stride=self.stride, padding=self.padding).to(self.device)  # Move to the same device
+            for _ in range(num_splits)
+        ])
+
+        self.copy_weights_from(conv_layer)
+
+    def forward(self, x):
+        split_outputs = [layer(x) for layer in self.split_layers]
+        return torch.cat(split_outputs, dim=1)
+
+    def copy_weights_from(self, original_layer: nn.Conv2d):
+        """Copies weights and biases from an original Conv2d layer"""
+        with torch.no_grad():
+            for i in range(self.num_splits):
+                self.split_layers[i].weight.copy_(original_layer.weight[i * self.split_channels: (i + 1) * self.split_channels])
+                self.split_layers[i].bias.copy_(original_layer.bias[i * self.split_channels: (i + 1) * self.split_channels])
+
+
+class InputChannelSplitConv2d(nn.Module):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4):
+        super(InputChannelSplitConv2d, self).__init__()
+        assert conv_layer.in_channels % num_splits == 0, "Input channels must be divisible by num_splits"
+
+        self.device = conv_layer.weight.device
+        self.num_splits = num_splits
+        self.in_channels = conv_layer.in_channels
+        self.out_channels = conv_layer.out_channels
+        self.kernel_size = conv_layer.kernel_size
+        self.stride = conv_layer.stride
+        self.padding = conv_layer.padding
+        self.num_splits = num_splits
+        self.split_channels = self.in_channels // num_splits
+
+        self.split_layers = nn.ModuleList([
+            nn.Conv2d(self.split_channels, self.out_channels, kernel_size=self.kernel_size,
+                      stride=self.stride, padding=self.padding).to(self.device)
+            for _ in range(num_splits)
+        ])
+
+        self.copy_weights_from(conv_layer)
+
+    def forward(self, x):
+        split_inputs = torch.chunk(x, self.num_splits, dim=1)  # Split input along channel dim
+        split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        return sum(split_outputs)  # Element-wise sum of outputs
+
+    def copy_weights_from(self, original_layer: nn.Conv2d):
+        with torch.no_grad():
+            for i in range(self.num_splits):
+                self.split_layers[i].weight.copy_(original_layer.weight[:, i * self.split_channels: (i + 1) * self.split_channels, :, :])
+                self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
+
+
