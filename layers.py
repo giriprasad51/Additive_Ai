@@ -51,7 +51,7 @@ class OutputChannelSplitConv2d(nn.Module):
 
 
 class InputChannelSplitConv2d(nn.Module):
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine = True):
         super(InputChannelSplitConv2d, self).__init__()
         assert conv_layer.in_channels % num_splits == 0, "Input channels must be divisible by num_splits"
 
@@ -64,7 +64,8 @@ class InputChannelSplitConv2d(nn.Module):
         self.padding = conv_layer.padding
         self.num_splits = num_splits
         self.split_channels = self.in_channels // num_splits
-
+        self.combine = combine
+        
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.split_channels, self.out_channels, kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)
@@ -76,7 +77,7 @@ class InputChannelSplitConv2d(nn.Module):
     def forward(self, x):
         split_inputs = torch.chunk(x, self.num_splits, dim=1)  # Split input along channel dim
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
-        return sum(split_outputs)  # Element-wise sum of outputs
+        return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
 
     def copy_weights_from(self, original_layer: nn.Conv2d):
         with torch.no_grad():
