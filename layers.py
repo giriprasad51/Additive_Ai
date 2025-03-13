@@ -86,3 +86,66 @@ class InputChannelSplitConv2d(nn.Module):
                 self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
 
 
+
+class OutputChannelSplitLinear(nn.Module):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4):
+        super(OutputChannelSplitLinear, self).__init__()
+        assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
+
+        self.device = linear_layer.weight.device
+        self.num_splits = num_splits
+        self.in_features = linear_layer.in_features
+        self.out_features = linear_layer.out_features
+        self.split_size = self.out_features // num_splits
+
+        # Create multiple smaller linear layers
+        self.split_layers = nn.ModuleList([
+            nn.Linear(self.in_features, self.split_size).to(self.device)
+            for _ in range(num_splits)
+        ])
+
+        self.copy_weights_from(linear_layer)
+
+    def forward(self, x):
+        split_outputs = [layer(x) for layer in self.split_layers]
+        return torch.cat(split_outputs, dim=1)  # Concatenate outputs
+
+    def copy_weights_from(self, original_layer: nn.Linear):
+        """Copies weights and biases from the original linear layer"""
+        with torch.no_grad():
+            for i in range(self.num_splits):
+                self.split_layers[i].weight.copy_(original_layer.weight[i * self.split_size: (i + 1) * self.split_size])
+                self.split_layers[i].bias.copy_(original_layer.bias[i * self.split_size: (i + 1) * self.split_size])
+
+                
+class InputChannelSplitLinear(nn.Module):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True):
+        super(InputChannelSplitLinear, self).__init__()
+        assert linear_layer.in_features % num_splits == 0, "Input features must be divisible by num_splits"
+
+        self.device = linear_layer.weight.device
+        self.num_splits = num_splits
+        self.in_features = linear_layer.in_features
+        self.out_features = linear_layer.out_features
+        self.split_size = self.in_features // num_splits
+        self.combine = combine
+
+        # Create multiple smaller linear layers
+        self.split_layers = nn.ModuleList([
+            nn.Linear(self.split_size, self.out_features).to(self.device)
+            for _ in range(num_splits)
+        ])
+
+        self.copy_weights_from(linear_layer)
+
+    def forward(self, x):
+        split_inputs = torch.chunk(x, self.num_splits, dim=1)  # Split input features
+        split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum if combining
+
+    def copy_weights_from(self, original_layer: nn.Linear):
+        """Copies weights and biases from the original linear layer"""
+        with torch.no_grad():
+            for i in range(self.num_splits):
+                self.split_layers[i].weight.copy_(original_layer.weight[:, i * self.split_size: (i + 1) * self.split_size])
+                self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
