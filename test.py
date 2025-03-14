@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .layers import OutputChannelSplitConv2d, InputChannelSplitConv2d
+from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear
 
 def test_OutputChannelSplitConv2d():
    
