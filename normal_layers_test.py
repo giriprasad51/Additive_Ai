@@ -69,7 +69,7 @@ def test_OutputChannelSplitConv2d():
 
 def test_InputChannelSplitConv2d():
         
-    for n in [2, 4, 8, 16, 32, 64]:
+    for n in range(2,64):
         # Create original Conv2d layer
         original_conv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
         # Create InputChannelSplitConv2d layer
@@ -130,7 +130,7 @@ def test_InputChannelSplitConv2d():
 
 def test_OutputChannelSplitLinear():
 
-    for n in [2, 4, 8, 16, 32, 64]:        
+    for n in range(2,64):        
         # Create original Linear layer
         original_linear = nn.Linear(in_features=16, out_features=64)
         
@@ -194,7 +194,7 @@ def test_OutputChannelSplitLinear():
 
 def test_InputChannelSplitLinear():
     
-    for n in [2, 4, 8, 16, 32, 64]:
+    for n in range(2,64):
         # Create original Linear layer
         original_linear = nn.Linear(in_features=64, out_features=64)
         
