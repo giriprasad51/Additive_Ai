@@ -19,7 +19,7 @@ class OutputChannelSplitConv2d(nn.Module):
     """
     def __init__(self, conv_layer: nn.Conv2d, num_splits=4):
         super(OutputChannelSplitConv2d, self).__init__()
-        assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
+        # assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
 
         self.device = conv_layer.weight.device  # Ensure the same device
         self.num_splits = num_splits
@@ -29,26 +29,33 @@ class OutputChannelSplitConv2d(nn.Module):
         self.stride = conv_layer.stride
         self.padding = conv_layer.padding
         self.split_channels = self.out_channels // num_splits
+        self.rem = self.out_channels % num_splits
 
         self.split_layers = nn.ModuleList([
-            nn.Conv2d(self.in_channels, self.split_channels, kernel_size=self.kernel_size,
+            nn.Conv2d(self.in_channels, self.split_channels + (1 if i < self.rem else 0), kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)  # Move to the same device
-            for _ in range(num_splits)
+            for i in range(num_splits)
         ])
 
         self.copy_weights_from(conv_layer)
 
     def forward(self, x):
         split_outputs = [layer(x) for layer in self.split_layers]
+        # for layer in self.split_layers:
+        #     print(layer.weight.shape)
         return torch.cat(split_outputs, dim=1)
 
     def copy_weights_from(self, original_layer: nn.Conv2d):
         """Copies weights and biases from an original Conv2d layer"""
         with torch.no_grad():
+            start_idx = 0
+            end_idx =  self.split_channels + (1 if self.rem >0 else 0)
             for i in range(self.num_splits):
-                self.split_layers[i].weight.copy_(original_layer.weight[i * self.split_channels: (i + 1) * self.split_channels])
-                self.split_layers[i].bias.copy_(original_layer.bias[i * self.split_channels: (i + 1) * self.split_channels])
-
+                self.split_layers[i].weight.copy_(original_layer.weight[start_idx:end_idx])
+                self.split_layers[i].bias.copy_(original_layer.bias[start_idx:end_idx]) 
+                self.rem -=1
+                start_idx = end_idx 
+                end_idx +=  self.split_channels + (1 if self.rem >0 else 0)
 
 class InputChannelSplitConv2d(nn.Module):
     def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine = True):
