@@ -31,8 +31,8 @@ def test_DistributedOutputChannelSplitConv2d(world_size, rank):
         
     parallel_output = parallel_conv(x)
     original_output = original_conv(x)
-    # print(f"rank {rank}","parallel_output",parallel_output)
-    # print(f"rank {rank}","original_output",original_output)
+    print(f"rank {rank}","parallel_output",parallel_output.shape)
+    print(f"rank {rank}","original_output",original_output.shape)
 
 
     # Ensure synchronization before validation
@@ -65,11 +65,11 @@ def main():
 
     # Run the test
     test_DistributedOutputChannelSplitConv2d(world_size, rank)
+    print(f"Rank {rank} Total time taken: ", datetime.datetime.now() - FULL_START)
 
 
 if __name__ == '__main__':
     total_epochs = 200
     FULL_START = datetime.datetime.now()
     main()
-    print("Total time taken: ", datetime.datetime.now() - FULL_START)
     exit(0)

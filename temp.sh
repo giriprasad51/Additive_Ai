@@ -5,7 +5,7 @@
 #SBATCH --job-name=DiasC
 #SBATCH --nodelist=node[7-8]
 #SBATCH --cpus-per-task=20
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:3
 #SBATCH --time=2-00:00:00
 #SBATCH --partition=allgpu
 #SBATCH --error=./outputs/tem.%J.err
@@ -25,7 +25,7 @@ head_node_ip=$(srun --nodes=1 --ntasks=1 -w "${nodes_array[0]}" hostname --ip-ad
 echo "Node IP: $head_node_ip"
 export LOGLEVEL=INFO
 
-srun torchrun --nnodes 1 --nproc_per_node 2 --rdzv_id $RANDOM --rdzv_backend c10d --rdzv_endpoint $head_node_ip:29500 temp.py 
+srun torchrun --nnodes 1 --nproc_per_node 3 --rdzv_id $RANDOM --rdzv_backend c10d --rdzv_endpoint $head_node_ip:29500 temp.py 
 
 # srun torchrun --nnodes 1 --nproc_per_node 1 --rdzv_id $RANDOM --rdzv_backend c10d --rdzv_endpoint $head_node_ip:29500 normal_layers_test.py
 
