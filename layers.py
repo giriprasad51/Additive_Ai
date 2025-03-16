@@ -30,6 +30,7 @@ class OutputChannelSplitConv2d(nn.Module):
         self.padding = conv_layer.padding
         self.split_channels = self.out_channels // num_splits
         self.rem = self.out_channels % num_splits
+        self.combine = combine
 
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.in_channels, self.split_channels + (1 if i < self.rem else 0), kernel_size=self.kernel_size,
@@ -112,6 +113,7 @@ class OutputChannelSplitLinear(nn.Module):
         self.out_features = linear_layer.out_features
         self.split_size = self.out_features // num_splits
         self.rem = self.out_features % num_splits
+        self.combine = combine
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
