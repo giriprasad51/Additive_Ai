@@ -11,47 +11,69 @@ def cleanup():
     dist.destroy_process_group()
 
 
-
 def test_DistributedOutputChannelSplitConv2d(world_size, rank):
     ddp_setup(rank, world_size)
     original_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1).to(f"cuda:{rank}")  
-    x = torch.randn(1, 3, 3, 3).to(f"cuda:{rank}")   
-    
+       
     # Broadcast original model's weights and input to all ranks
     for param in original_conv.parameters():
         dist.broadcast(param.data, src=0)
-    dist.broadcast(x, src=0)
+    
     # Initialize parallel convolution
     parallel_conv = DistributedOutputChannelSplitConv2d(original_conv, world_size, rank, combine=True)
     dist.barrier()
-    # if rank ==0:
-    #     print(parallel_conv.rank)
-    # else:
-    #     print(parallel_conv.rank)
+    
+    for _ in range(2):
+
+        x = torch.randn(1, 3, 32, 32, requires_grad=True).to(f"cuda:{rank}")
+        dist.broadcast(x, src=0)
+
+        optimizer1 = torch.optim.SGD(original_conv.parameters(), lr=0.1)
+        optimizer2 = torch.optim.SGD(parallel_conv.conv.parameters(), lr=0.1)
         
-    parallel_output = parallel_conv(x)
-    original_output = original_conv(x)
-    print(f"rank {rank}","parallel_output",parallel_output.shape)
-    print(f"rank {rank}","original_output",original_output.shape)
+        parallel_output = parallel_conv(x)
+        original_output = original_conv(x)
 
+        target = torch.randn_like(parallel_output, requires_grad=False).to(f"cuda:{rank}")
+        dist.broadcast(target, src=0)
+        
+        # Ensure synchronization before validation
+        dist.barrier()
 
-    # Ensure synchronization before validation
-    dist.barrier()
+        # Create a dummy loss
+        loss_fn = nn.MSELoss()
+
+        if rank == 0:
+            
+            # Ensure shape matches
+            assert original_output.shape == parallel_output.shape, f"Shape mismatch: {original_output.shape} vs {parallel_output.shape}"
+
+            # Ensure values match closely
+            num_mismatched = torch.sum(~torch.isclose(original_output, parallel_output, atol=1e-5)).item()
+            assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched}/ {original_output.numel()}"
+            assert torch.allclose(original_output, parallel_output, atol=1e-5), "Outputs do not match!"
+            # print("original", rank, original_conv.weight.shape, original_conv.weight[22:,:,:,:])
+            
+            original_loss = loss_fn(original_output, target)
+            # Backward pass
+            original_loss.backward()
+            optimizer1.step()
+
+            parallel_loss = loss_fn(parallel_output, target)
+            parallel_loss.backward()
+            optimizer2.step()
+        
+        else:
+            parallel_loss = loss_fn(parallel_output, target)
+            parallel_loss.backward()
+            optimizer2.step()
+            
+
+        # Ensure synchronization before checking gradients
+        dist.barrier()
 
     if rank == 0:
-        print(f"Original Output Mean: {original_output.mean()}, Std: {original_output.std()}")
-        print(f"Parallel Output Mean: {parallel_output.mean()}, Std: {parallel_output.std()}")
-
-        # Ensure shape matches
-        assert original_output.shape == parallel_output.shape, f"Shape mismatch: {original_output.shape} vs {parallel_output.shape}"
-
-        # Ensure values match closely
-        num_mismatched = torch.sum(~torch.isclose(original_output, parallel_output, atol=1e-5)).item()
-        assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched}"
-        assert torch.allclose(original_output, parallel_output, atol=1e-5), "Outputs do not match!"
-
-        print("Test passed: DistributedOutputChannelSplitConv2d matches standard Conv2d!")
-
+        print("Test passed: Forward and Backward outputs match standard Conv2d!")            
     cleanup()
 
 
