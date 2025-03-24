@@ -28,12 +28,12 @@ class OutputChannelSplitConv2d(nn.Module):
         self.kernel_size = conv_layer.kernel_size
         self.stride = conv_layer.stride
         self.padding = conv_layer.padding
-        self.split_channels = self.out_channels // num_splits
         self.rem = self.out_channels % num_splits
+        self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
 
         self.split_layers = nn.ModuleList([
-            nn.Conv2d(self.in_channels, self.split_channels + (1 if i < self.rem else 0), kernel_size=self.kernel_size,
+            nn.Conv2d(self.in_channels,self.split_channels[i] , kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)  # Move to the same device
             for i in range(num_splits)
         ])
@@ -50,13 +50,13 @@ class OutputChannelSplitConv2d(nn.Module):
         """Copies weights and biases from an original Conv2d layer"""
         with torch.no_grad():
             start_idx = 0
-            end_idx =  self.split_channels + (1 if self.rem >0 else 0)
+            end_idx =  0
             for i in range(self.num_splits):
+                end_idx +=  self.split_channels[i]
                 self.split_layers[i].weight.copy_(original_layer.weight[start_idx:end_idx])
                 self.split_layers[i].bias.copy_(original_layer.bias[start_idx:end_idx]) 
-                self.rem -=1
                 start_idx = end_idx 
-                end_idx +=  self.split_channels + (1 if self.rem >0 else 0)
+                
 
 class InputChannelSplitConv2d(nn.Module):
     def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine = True):
@@ -71,12 +71,12 @@ class InputChannelSplitConv2d(nn.Module):
         self.stride = conv_layer.stride
         self.padding = conv_layer.padding
         self.num_splits = num_splits
-        self.split_channels = self.in_channels // num_splits
         self.rem = self.in_channels % num_splits
+        self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
         
         self.split_layers = nn.ModuleList([
-            nn.Conv2d(self.split_channels + (1 if i < self.rem else 0), self.out_channels, kernel_size=self.kernel_size,
+            nn.Conv2d(self.split_channels[i], self.out_channels, kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)
             for i in range(num_splits)
         ])
@@ -84,7 +84,7 @@ class InputChannelSplitConv2d(nn.Module):
         self.copy_weights_from(conv_layer)
 
     def forward(self, x):
-        split_sizes = [self.split_channels + (1 if i < self.rem else 0) for i in range(self.num_splits)]
+        split_sizes = self.split_channels 
         split_inputs = torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
@@ -93,13 +93,13 @@ class InputChannelSplitConv2d(nn.Module):
         with torch.no_grad():
             rem = self.rem
             start_idx = 0
-            end_idx =  self.split_channels + (1 if rem >0 else 0)
-            for i in range(self.num_splits): 
+            end_idx =  0
+            for i in range(self.num_splits):
+                end_idx +=  self.split_channels[i]
                 self.split_layers[i].weight.copy_(original_layer.weight[:, start_idx:end_idx, :, :])
                 self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
-                rem -=1
                 start_idx = end_idx 
-                end_idx +=  self.split_channels + (1 if rem >0 else 0)
+                
 
 
 class OutputChannelSplitLinear(nn.Module):
@@ -111,13 +111,13 @@ class OutputChannelSplitLinear(nn.Module):
         self.num_splits = num_splits
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
-        self.split_size = self.out_features // num_splits
         self.rem = self.out_features % num_splits
+        self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.in_features, self.split_size + (1 if i < self.rem else 0)).to(self.device)
+            nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
             for i in range(num_splits)
         ])
 
@@ -136,13 +136,13 @@ class OutputChannelSplitLinear(nn.Module):
 
         with torch.no_grad():
             start_idx = 0
-            end_idx =  self.split_size + (1 if self.rem >0 else 0)
+            end_idx =  0
             for i in range(self.num_splits):
+                end_idx +=  self.split_sizes[i]
                 self.split_layers[i].weight.copy_(original_layer.weight[start_idx:end_idx])
                 self.split_layers[i].bias.copy_(original_layer.bias[start_idx:end_idx]) 
-                self.rem -=1
                 start_idx = end_idx 
-                end_idx +=  self.split_size + (1 if self.rem >0 else 0)
+                
                 
 class InputChannelSplitLinear(nn.Module):
     def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True):
@@ -153,13 +153,13 @@ class InputChannelSplitLinear(nn.Module):
         self.num_splits = num_splits
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
-        self.split_size = self.in_features // num_splits
         self.rem = self.in_features % num_splits
+        self.split_sizes = [self.in_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.split_size + (1 if i < self.rem else 0), self.out_features).to(self.device)
+            nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
             for i in range(num_splits)
         ])
 
@@ -169,8 +169,7 @@ class InputChannelSplitLinear(nn.Module):
 
     def forward(self, x):
 
-        split_sizes = [self.split_size + (1 if i < self.rem else 0) for i in range(self.num_splits)]
-        split_inputs = torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+        split_inputs = torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum if combining
 
@@ -182,12 +181,11 @@ class InputChannelSplitLinear(nn.Module):
         #         self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
 
         with torch.no_grad():
-            rem = self.rem
             start_idx = 0
-            end_idx =  self.split_size + (1 if rem >0 else 0)
-            for i in range(self.num_splits): 
+            end_idx =  0
+            for i in range(self.num_splits):
+                end_idx +=  self.split_sizes[i]
                 self.split_layers[i].weight.copy_(original_layer.weight[:, start_idx:end_idx])
                 self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
-                rem -=1
                 start_idx = end_idx 
-                end_idx +=  self.split_size + (1 if rem >0 else 0)
+                
