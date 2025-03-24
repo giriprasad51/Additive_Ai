@@ -85,7 +85,7 @@ class InputChannelSplitConv2d(nn.Module):
 
     def forward(self, x):
         split_sizes = self.split_channels 
-        split_inputs = torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+        split_inputs = x if type(x) is list else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
 
@@ -169,7 +169,7 @@ class InputChannelSplitLinear(nn.Module):
 
     def forward(self, x):
 
-        split_inputs = torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+        split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum if combining
 
@@ -188,4 +188,19 @@ class InputChannelSplitLinear(nn.Module):
                 self.split_layers[i].weight.copy_(original_layer.weight[:, start_idx:end_idx])
                 self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
                 start_idx = end_idx 
-                
+
+
+class ParallelReLU(nn.Module):
+    def __init__(self, combine=False):
+        super(ParallelReLU, self).__init__()
+        self.relu = nn.ReLU()
+        self.combine = combine
+
+    def forward(self, x):
+        if isinstance(x, list):
+            relu_outputs = [self.relu(tensor) for tensor in x]
+            return torch.cat(relu_outputs, dim=1) if self.combine else relu_outputs
+        elif isinstance(x, torch.Tensor):
+            return self.relu(x)
+        else:
+            raise TypeError("Input must be a Tensor or a list of Tensors")              

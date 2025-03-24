@@ -29,4 +29,6 @@ export LOGLEVEL=INFO
 
 # srun torchrun --nnodes 1 --nproc_per_node 1 --rdzv_id $RANDOM --rdzv_backend c10d --rdzv_endpoint $head_node_ip:29500 normal_layers_test.py
 
-pytest normal_layers_test.py
+# pytest normal_layers_test.py
+
+python  vgg19_modeltest.py
