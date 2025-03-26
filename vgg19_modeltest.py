@@ -4,7 +4,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 from torch.utils.data import DataLoader
-from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelReLU
+from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelReLU, ParallelMaxPool2d
 
 def test_vgg19_on_cifar():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,7 +25,6 @@ def test_vgg19_on_cifar():
     model.load_state_dict(torch.load('./vgg19_cifar10.pth'))
     
     # Modify classifier for CIFAR-10 (10 classes)
-    # model.classifier[6] = nn.Linear(4096, 10)
     model = model.to(device)
     model.eval()
     # print(model)
@@ -67,7 +66,11 @@ def test_vgg19parallel_on_cifar():
 
     model.features[0] = OutputChannelSplitConv2d(model.features[0], num_splits=4, combine=False)
     model.features[1] = ParallelReLU()
-    model.features[2] = InputChannelSplitConv2d(model.features[2], num_splits=4 )
+    model.features[2] = InputChannelSplitConv2d(model.features[2], num_splits=4, combine=False)
+    model.features[3] = ParallelReLU()
+    model.features[4] = ParallelMaxPool2d(model.features[4], combine=False)
+    model.features[5] = OutputChannelSplitConv2d(model.features[5], num_splits=4, combine=True)
+
     model.eval()
     
     # Test the model

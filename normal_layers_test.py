@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear
+from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelMaxPool2d
 
 import torch
 import torch.nn as nn
@@ -254,3 +254,30 @@ def test_InputChannelSplitLinear():
 
 # Run the test
 # test_InputChannelSplitLinear()
+
+def test_ParallelMaxPool2d():
+    # Define a max pooling layer
+    pool_layer = nn.MaxPool2d(kernel_size=2, stride=2)
+    parallel_pool = ParallelMaxPool2d(pool_layer, combine=True)
+    
+    # Create dummy input tensor
+    x = torch.randn(16, 16, 32, 32)
+    x1 = list(torch.split(x, [8,5,3], dim=0))
+    
+    
+    # Test with single tensor input
+    pooled_single = parallel_pool(x1)
+    expected_single = pool_layer(x)
+    
+    # Check shape consistency
+    assert pooled_single.shape == expected_single.shape, f"Shape mismatch: {pooled_single.shape} vs {expected_single.shape}"
+    
+    # Check output correctness
+    assert torch.allclose(pooled_single, expected_single, atol=1e-5), "Outputs do not match!"
+    
+    
+    
+    print("All tests passed for ParallelMaxPool2d!")
+
+# Run the test
+test_ParallelMaxPool2d()

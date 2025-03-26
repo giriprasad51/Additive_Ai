@@ -41,9 +41,12 @@ class OutputChannelSplitConv2d(nn.Module):
         self.copy_weights_from(conv_layer)
 
     def forward(self, x):
-        split_outputs = [layer(x) for layer in self.split_layers]
-        # for layer in self.split_layers:
-        #     print(layer.weight.shape)
+        if isinstance(x, list):
+            split_outputs = [layer(x1) for x1,layer in zip(x, self.split_layers)]
+        else:
+            split_outputs = [layer(x) for layer in self.split_layers]
+            # for layer in self.split_layers:
+            #     print(layer.weight.shape)
         return torch.cat(split_outputs, dim=1) if self.combine else split_outputs
 
     def copy_weights_from(self, original_layer: nn.Conv2d):
@@ -85,7 +88,7 @@ class InputChannelSplitConv2d(nn.Module):
 
     def forward(self, x):
         split_sizes = self.split_channels 
-        split_inputs = x if type(x) is list else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+        split_inputs = x if  isinstance(x, list) else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
 
@@ -203,4 +206,28 @@ class ParallelReLU(nn.Module):
         elif isinstance(x, torch.Tensor):
             return self.relu(x)
         else:
-            raise TypeError("Input must be a Tensor or a list of Tensors")              
+            raise TypeError("Input must be a Tensor or a list of Tensors")
+
+class ParallelMaxPool2d(nn.Module):
+    def __init__(self, pool_layer: nn.MaxPool2d, combine=None):
+        super(ParallelMaxPool2d, self).__init__()
+        self.pool = pool_layer
+        self.combine = combine
+
+    def forward(self, x):
+        if isinstance(x, list):
+            # print("-----------------------------")
+            # print([tensor.shape for tensor in x])
+            pooled_outputs = [self.pool(tensor) for tensor in x]
+            # print([tensor.shape for tensor in pooled_outputs])
+            # return sum(pooled_outputs)
+            # return torch.cat(pooled_outputs, dim=0) if self.combine else pooled_outputs
+            if self.combine:
+                return torch.cat(pooled_outputs, dim=0) if self.combine == "cat" else sum(pooled_outputs)
+            else:
+                return pooled_outputs
+        elif isinstance(x, torch.Tensor):
+            print(self.pool(x).shape)
+            return self.pool(x)
+        else:
+            raise TypeError("Input must be a Tensor or a list of Tensors")
