@@ -17,19 +17,23 @@ class OutputChannelSplitConv2d(nn.Module):
         output = parallel_conv(x)
         print("Output shape:", output.shape)
     """
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine = True):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None):
         super(OutputChannelSplitConv2d, self).__init__()
         # assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
 
+        self.weight = conv_layer.weight
+        self.bias = conv_layer.bias
         self.device = conv_layer.weight.device  # Ensure the same device
-        self.num_splits = num_splits
         self.in_channels = conv_layer.in_channels
         self.out_channels = conv_layer.out_channels
         self.kernel_size = conv_layer.kernel_size
         self.stride = conv_layer.stride
         self.padding = conv_layer.padding
         self.rem = self.out_channels % num_splits
-        self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
+        if split_channels:
+            self.split_channels = split_channels
+        else:
+            self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
 
         self.split_layers = nn.ModuleList([
@@ -38,7 +42,7 @@ class OutputChannelSplitConv2d(nn.Module):
             for i in range(num_splits)
         ])
 
-        self.copy_weights_from(conv_layer)
+        self.copy_weights_from()
 
     def forward(self, x):
         if isinstance(x, list):
@@ -48,16 +52,34 @@ class OutputChannelSplitConv2d(nn.Module):
             # for layer in self.split_layers:
             #     print(layer.weight.shape)
         return torch.cat(split_outputs, dim=1) if self.combine else split_outputs
+    
+    def change_split_channels(self, split_channels):
+        assert sum(split_channels) == self.out_channels, \
+            "Sum of new split_channels must equal total out_channels"
+        
 
-    def copy_weights_from(self, original_layer: nn.Conv2d):
+        self.split_channels = split_channels
+
+        self.split_layers = nn.ModuleList([
+            nn.Conv2d(self.in_channels,self.split_channels[i] , kernel_size=self.kernel_size,
+                      stride=self.stride, padding=self.padding).to(self.device)  # Move to the same device
+            for i in range(len(self.split_channels))
+        ])
+
+        self.copy_weights_from()
+
+
+    def copy_weights_from(self, split_channels=None):
         """Copies weights and biases from an original Conv2d layer"""
+        if split_channels:
+            self.split_channels = split_channels
         with torch.no_grad():
             start_idx = 0
             end_idx =  0
-            for i in range(self.num_splits):
+            for i in range(len(self.split_channels)):
                 end_idx +=  self.split_channels[i]
-                self.split_layers[i].weight.copy_(original_layer.weight[start_idx:end_idx])
-                self.split_layers[i].bias.copy_(original_layer.bias[start_idx:end_idx]) 
+                self.split_layers[i].weight.copy_(self.weight[start_idx:end_idx])
+                self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
                 start_idx = end_idx 
                 
 
@@ -207,6 +229,21 @@ class ParallelReLU(nn.Module):
             return self.relu(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
+        
+class ParallelDropout(nn.Module):
+    def __init__(self, layer=None, combine=False):
+        super(ParallelDropout, self).__init__()
+        self.dropout = layer if layer is not None else nn.Dropout(0.5)
+        self.combine = combine
+
+    def forward(self, x):
+        if isinstance(x, list):
+            dropout_outputs = [self.dropout(tensor) for tensor in x]
+            return torch.cat(dropout_outputs, dim=1) if self.combine else dropout_outputs
+        elif isinstance(x, torch.Tensor):
+            return self.dropout(x)
+        else:
+            raise TypeError("Input must be a Tensor or a list of Tensors")  
 
 class ParallelMaxPool2d(nn.Module):
     def __init__(self, pool_layer: nn.MaxPool2d, combine=None):
@@ -227,7 +264,7 @@ class ParallelMaxPool2d(nn.Module):
             else:
                 return pooled_outputs
         elif isinstance(x, torch.Tensor):
-            print(self.pool(x).shape)
+            # print(self.pool(x).shape)
             return self.pool(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")

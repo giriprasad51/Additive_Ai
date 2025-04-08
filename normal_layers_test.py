@@ -1,19 +1,77 @@
 import torch
 import torch.nn as nn
 from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelMaxPool2d
+from maths import sum_random_nums_n
+import pytest
 
-import torch
-import torch.nn as nn
 
-def test_OutputChannelSplitConv2d():
-    # Create original Conv2d layer
-    original_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
-    
-    print(original_conv.weight.shape)
-    for n in range(2, 64):
-        # Assume OutputChannelSplitConv2d is correctly implemented
-        parallel_conv = OutputChannelSplitConv2d(original_conv, num_splits=n)
+class TestOutputChannelSplitConv2d:
+
+    def test_OutputChannelSplitConv2d(self):
+        # Create original Conv2d layer
+        original_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
         
+        print(original_conv.weight.shape)
+        for n in range(2, 64):
+            # Assume OutputChannelSplitConv2d is correctly implemented
+            parallel_conv = OutputChannelSplitConv2d(original_conv, num_splits=n)
+            
+            # Create a dummy input tensor with requires_grad=True for gradient testing
+            x = torch.randn(1, 3, 32, 32, requires_grad=True)
+            
+            # Get outputs from both layers
+            original_output = original_conv(x)
+            parallel_output = parallel_conv(x)
+            
+            # Check shape consistency
+            assert original_output.shape == parallel_output.shape, f"Shape mismatch: {original_output.shape} vs {parallel_output.shape}"
+            
+            # Check number of elements mismatch
+            num_mismatched = torch.sum(~torch.isclose(original_output, parallel_output, atol=1e-5)).item()
+            assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched}/ {original_output.numel()}"
+
+            # Check output similarity
+            assert torch.allclose(original_output, parallel_output, atol=1e-5), "Outputs do not match!"
+
+            # Create a dummy loss function
+            loss_fn = nn.MSELoss()
+            
+            # Create dummy target tensor
+            target = torch.randn_like(original_output)
+
+            # Compute loss and backward for original Conv2d
+            original_loss = loss_fn(original_output, target)
+            original_loss.backward()
+            original_grad = x.grad.clone()  # Save original gradients
+
+            # Reset gradients
+            x.grad.zero_()
+
+            # Compute loss and backward for OutputChannelSplitConv2d
+            parallel_loss = loss_fn(parallel_output, target)
+            parallel_loss.backward()
+            parallel_grad = x.grad.clone()  # Save parallel gradients
+
+            # Check shape consistency
+            assert original_grad.shape == parallel_grad.shape, f"Shape mismatch: {original_grad.shape} vs {parallel_grad.shape}"
+
+            # Check number of elements mismatch
+            num_mismatched = torch.sum(~torch.isclose(original_grad, parallel_grad, atol=1e-5)).item()
+            assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched} / {original_grad.numel()}"
+
+            # Check gradient consistency
+            assert torch.allclose(original_grad, parallel_grad, atol=1e-5), "Gradient mismatch detected!"
+
+
+            print("Test passed: Forward and backward pass of OutputChannelSplitConv2d match standard Conv2d!")
+
+    def test_split_channels(self):
+
+        # Create original Conv2d layer
+        original_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
+        
+
+        parallel_conv = OutputChannelSplitConv2d(original_conv, num_splits=2, split_channels=[32,32])
         # Create a dummy input tensor with requires_grad=True for gradient testing
         x = torch.randn(1, 3, 32, 32, requires_grad=True)
         
@@ -63,8 +121,66 @@ def test_OutputChannelSplitConv2d():
 
         print("Test passed: Forward and backward pass of OutputChannelSplitConv2d match standard Conv2d!")
 
-# Run the test
-# test_OutputChannelSplitConv2d()
+    def test_change_split_channels(self):
+        # Create original Conv2d layer
+        original_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
+        
+
+        parallel_conv = OutputChannelSplitConv2d(original_conv, num_splits=2)
+        # Create a dummy input tensor with requires_grad=True for gradient testing
+        x = torch.randn(1, 3, 32, 32, requires_grad=True)
+        
+        for _ in range(20):
+            parallel_conv.change_split_channels(sum_random_nums_n(64))
+            # Get outputs from both layers
+            original_output = original_conv(x)
+            parallel_output = parallel_conv(x)
+            
+            # Check shape consistency
+            assert original_output.shape == parallel_output.shape, f"Shape mismatch: {original_output.shape} vs {parallel_output.shape}"
+            
+            # Check number of elements mismatch
+            num_mismatched = torch.sum(~torch.isclose(original_output, parallel_output, atol=1e-5)).item()
+            assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched}/ {original_output.numel()}"
+
+            # Check output similarity
+            assert torch.allclose(original_output, parallel_output, atol=1e-5), "Outputs do not match!"
+
+            # Create a dummy loss function
+            loss_fn = nn.MSELoss()
+            
+            # Create dummy target tensor
+            target = torch.randn_like(original_output)
+
+            # Compute loss and backward for original Conv2d
+            original_loss = loss_fn(original_output, target)
+            original_loss.backward()
+            original_grad = x.grad.clone()  # Save original gradients
+
+            # Reset gradients
+            x.grad.zero_()
+
+            # Compute loss and backward for OutputChannelSplitConv2d
+            parallel_loss = loss_fn(parallel_output, target)
+            parallel_loss.backward()
+            parallel_grad = x.grad.clone()  # Save parallel gradients
+
+            # Check shape consistency
+            assert original_grad.shape == parallel_grad.shape, f"Shape mismatch: {original_grad.shape} vs {parallel_grad.shape}"
+
+            # Check number of elements mismatch
+            num_mismatched = torch.sum(~torch.isclose(original_grad, parallel_grad, atol=1e-5)).item()
+            assert num_mismatched == 0, f"Number of mismatched elements: {num_mismatched} / {original_grad.numel()}"
+
+            # Check gradient consistency
+            assert torch.allclose(original_grad, parallel_grad, atol=1e-5), "Gradient mismatch detected!"
+
+
+            print("Test passed: Forward and backward pass of OutputChannelSplitConv2d match standard Conv2d!")
+
+
+    # Run the test
+    # test_OutputChannelSplitConv2d()
 
 
 def test_InputChannelSplitConv2d():
@@ -258,7 +374,7 @@ def test_InputChannelSplitLinear():
 def test_ParallelMaxPool2d():
     # Define a max pooling layer
     pool_layer = nn.MaxPool2d(kernel_size=2, stride=2)
-    parallel_pool = ParallelMaxPool2d(pool_layer, combine=True)
+    parallel_pool = ParallelMaxPool2d(pool_layer, combine="cat")
     
     # Create dummy input tensor
     x = torch.randn(16, 16, 32, 32)
@@ -266,8 +382,9 @@ def test_ParallelMaxPool2d():
     
     
     # Test with single tensor input
-    pooled_single = parallel_pool(x1)
     expected_single = pool_layer(x)
+    pooled_single = parallel_pool(x1)
+    
     
     # Check shape consistency
     assert pooled_single.shape == expected_single.shape, f"Shape mismatch: {pooled_single.shape} vs {expected_single.shape}"
@@ -280,4 +397,4 @@ def test_ParallelMaxPool2d():
     print("All tests passed for ParallelMaxPool2d!")
 
 # Run the test
-test_ParallelMaxPool2d()
+# test_ParallelMaxPool2d()
