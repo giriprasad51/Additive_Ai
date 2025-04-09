@@ -84,10 +84,12 @@ class OutputChannelSplitConv2d(nn.Module):
                 
 
 class InputChannelSplitConv2d(nn.Module):
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine = True):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None):
         super(InputChannelSplitConv2d, self).__init__()
         # assert conv_layer.in_channels % num_splits == 0, "Input channels must be divisible by num_splits"
 
+        self.weight = conv_layer.weight
+        self.bias = conv_layer.bias
         self.device = conv_layer.weight.device
         self.num_splits = num_splits
         self.in_channels = conv_layer.in_channels
@@ -95,18 +97,20 @@ class InputChannelSplitConv2d(nn.Module):
         self.kernel_size = conv_layer.kernel_size
         self.stride = conv_layer.stride
         self.padding = conv_layer.padding
-        self.num_splits = num_splits
         self.rem = self.in_channels % num_splits
-        self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
+        if split_channels:
+            self.split_channels = split_channels
+        else:
+            self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
         
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.split_channels[i], self.out_channels, kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)
-            for i in range(num_splits)
+            for i in range(len(self.split_channels))
         ])
 
-        self.copy_weights_from(conv_layer)
+        self.copy_weights_from()
 
     def forward(self, x):
         split_sizes = self.split_channels 
@@ -114,83 +118,115 @@ class InputChannelSplitConv2d(nn.Module):
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
 
-    def copy_weights_from(self, original_layer: nn.Conv2d):
+    def change_split_channels(self, split_channels):
+        assert sum(split_channels) == self.in_channels, \
+            "Sum of new split_channels must equal total in_channels"
+
+        self.split_channels = split_channels
+
+        self.split_layers = nn.ModuleList([
+            nn.Conv2d(self.split_channels[i], self.out_channels,
+                      kernel_size=self.kernel_size, stride=self.stride,
+                      padding=self.padding).to(self.device)
+            for i in range(len(self.split_channels))
+        ])
+
+        self.copy_weights_from()
+    
+    def copy_weights_from(self):
         with torch.no_grad():
             rem = self.rem
             start_idx = 0
             end_idx =  0
-            for i in range(self.num_splits):
+            for i in range(len(self.split_channels)):
                 end_idx +=  self.split_channels[i]
-                self.split_layers[i].weight.copy_(original_layer.weight[:, start_idx:end_idx, :, :])
-                self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
+                self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx, :, :])
+                self.split_layers[i].bias.copy_(self.bias / len(self.split_channels))
                 start_idx = end_idx 
                 
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
+        self.weight = linear_layer.weight
+        self.bias = linear_layer.bias
         self.device = linear_layer.weight.device
         self.num_splits = num_splits
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
         self.rem = self.out_features % num_splits
-        self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        if split_channels:
+            self.split_sizes = split_channels
+        else:
+            self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
             nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
-            for i in range(num_splits)
+            for i in range(len(self.split_sizes))
         ])
 
-        self.copy_weights_from(linear_layer)
+        self.copy_weights_from()
 
     def forward(self, x):
         split_outputs = [layer(x) for layer in self.split_layers]
         return torch.cat(split_outputs, dim=1)  if self.combine else split_outputs # Concatenate outputs
 
-    def copy_weights_from(self, original_layer: nn.Linear):
-        """Copies weights and biases from the original linear layer"""
-        # with torch.no_grad():
-        #     for i in range(self.num_splits):
-        #         self.split_layers[i].weight.copy_(original_layer.weight[i * self.split_size: (i + 1) * self.split_size])
-        #         self.split_layers[i].bias.copy_(original_layer.bias[i * self.split_size: (i + 1) * self.split_size])
+    def change_split_channels(self, split_channels):
+        assert sum(split_channels) == self.out_features, \
+            "Sum of new split_channels must equal total out_features"
 
+        self.split_sizes = split_channels
+        self.split_layers = nn.ModuleList([
+            nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
+            for i in range(len(self.split_sizes))
+        ])
+        self.copy_weights_from()
+
+    def copy_weights_from(self):
+        """Copies weights and biases from the original linear layer"""
+        
         with torch.no_grad():
             start_idx = 0
             end_idx =  0
-            for i in range(self.num_splits):
+            for i in range(len(self.split_sizes)):
                 end_idx +=  self.split_sizes[i]
-                self.split_layers[i].weight.copy_(original_layer.weight[start_idx:end_idx])
-                self.split_layers[i].bias.copy_(original_layer.bias[start_idx:end_idx]) 
+                self.split_layers[i].weight.copy_(self.weight[start_idx:end_idx])
+                self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
                 start_idx = end_idx 
                 
                 
 class InputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True, split_channels=None):
         super(InputChannelSplitLinear, self).__init__()
         # assert linear_layer.in_features % num_splits == 0, "Input features must be divisible by num_splits"
 
+        self.weight = linear_layer.weight
+        self.bias = linear_layer.bias
         self.device = linear_layer.weight.device
         self.num_splits = num_splits
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
         self.rem = self.in_features % num_splits
-        self.split_sizes = [self.in_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        if split_channels:
+            self.split_sizes = split_channels
+        else:
+            self.split_sizes = [self.in_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
             nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
-            for i in range(num_splits)
+            for i in range(len(self.split_sizes))
         ])
 
         # print(self.split_layers)
 
-        self.copy_weights_from(linear_layer)
+        self.copy_weights_from()
 
     def forward(self, x):
 
@@ -198,20 +234,28 @@ class InputChannelSplitLinear(nn.Module):
         split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum if combining
 
-    def copy_weights_from(self, original_layer: nn.Linear):
+    def change_split_channels(self, split_channels):
+        assert sum(split_channels) == self.in_features, \
+            "Sum of new split_channels must equal total in_features"
+
+        self.split_sizes = split_channels
+        self.split_layers = nn.ModuleList([
+            nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
+            for i in range(len(self.split_sizes))
+        ])
+        self.copy_weights_from()
+
+    def copy_weights_from(self):
         """Copies weights and biases from the original linear layer"""
-        # with torch.no_grad():
-        #     for i in range(self.num_splits):
-        #         self.split_layers[i].weight.copy_(original_layer.weight[:, i * self.split_size: (i + 1) * self.split_size])
-        #         self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
+        
 
         with torch.no_grad():
             start_idx = 0
             end_idx =  0
-            for i in range(self.num_splits):
+            for i in range(len(self.split_layers)):
                 end_idx +=  self.split_sizes[i]
-                self.split_layers[i].weight.copy_(original_layer.weight[:, start_idx:end_idx])
-                self.split_layers[i].bias.copy_(original_layer.bias / self.num_splits)
+                self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
+                self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
                 start_idx = end_idx 
 
 
