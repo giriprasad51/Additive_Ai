@@ -28,7 +28,7 @@ def all_groupings_formatted(n):
     all_groupings = generate_groups(order)
     return [convert_format(grouping, n) for grouping in all_groupings]
 
-print(all_groupings_formatted(4))
+# print(all_groupings_formatted(4))
 
 
 
@@ -45,9 +45,10 @@ def sum_random_nums_n(n):
 
     return parts
 
-for i in range(10):
-    # Example usage:
-    n = 10
-    print(sum_random_nums_n(n))
+# for i in range(10):
+#     # Example usage:
+#     n = 10
+#     print(sum_random_nums_n(n))
+
 
 

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from maths import sum_random_nums_n
 
 
 # For Conv2d
@@ -17,7 +18,7 @@ class OutputChannelSplitConv2d(nn.Module):
         output = parallel_conv(x)
         print("Output shape:", output.shape)
     """
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, random_split=False):
         super(OutputChannelSplitConv2d, self).__init__()
         # assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
 
@@ -35,6 +36,7 @@ class OutputChannelSplitConv2d(nn.Module):
         else:
             self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
+        self.random_split = random_split
 
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.in_channels,self.split_channels[i] , kernel_size=self.kernel_size,
@@ -46,14 +48,27 @@ class OutputChannelSplitConv2d(nn.Module):
 
     def forward(self, x):
         if isinstance(x, list):
-            split_outputs = [layer(x1) for x1,layer in zip(x, self.split_layers)]
+            if isinstance(x[0], list):
+                # self.change_split_channels(split_channels=x[1], num_splits=len(x[1]))
+                split_outputs = [layer(x1) for x1,layer in zip(x[0], self.split_layers)]
+            else:
+                split_outputs = [layer(x1) for x1,layer in zip(x, self.split_layers)]
         else:
             split_outputs = [layer(x) for layer in self.split_layers]
             # for layer in self.split_layers:
             #     print(layer.weight.shape)
-        return torch.cat(split_outputs, dim=1) if self.combine else split_outputs
+
+        split_sizes = self.split_channels
+        if self.random_split:
+            split_outputs = torch.cat(split_outputs, dim=1)
+            split_sizes = sum_random_nums_n(split_outputs.shape[1])
+            split_outputs = torch.split(split_outputs, split_sizes, dim=1)
+
+        return torch.cat(split_outputs, dim=1) if self.combine else [split_outputs, torch.tensor(split_sizes)]
     
-    def change_split_channels(self, split_channels):
+    def change_split_channels(self, split_channels, num_splits=None):
+        if num_splits:
+            split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         assert sum(split_channels) == self.out_channels, \
             "Sum of new split_channels must equal total out_channels"
         
@@ -101,7 +116,7 @@ class InputChannelSplitConv2d(nn.Module):
         if split_channels:
             self.split_channels = split_channels
         else:
-            self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
+            self.split_channels = [self.in_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
         
         self.split_layers = nn.ModuleList([
@@ -113,12 +128,20 @@ class InputChannelSplitConv2d(nn.Module):
         self.copy_weights_from()
 
     def forward(self, x):
-        split_sizes = self.split_channels 
-        split_inputs = x if  isinstance(x, list) else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
-        split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
-        return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum of outputs
+        
+        if isinstance(x[0], list):
+            # print("check-point2",x[1])
+            split_sizes = x[1].tolist()
+            self.change_split_channels(split_channels=split_sizes)
+            split_inputs = x[0] if  isinstance(x[0], list) else torch.split(x[0], split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+            split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        else:
+            split_sizes = self.split_channels 
+            split_inputs = x if  isinstance(x, list) else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+            split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        return sum(split_outputs) if self.combine else [split_outputs,torch.tensor(split_sizes)]   # Element-wise sum of outputs
 
-    def change_split_channels(self, split_channels):
+    def change_split_channels(self, split_channels, num_splits=None):
         assert sum(split_channels) == self.in_channels, \
             "Sum of new split_channels must equal total in_channels"
 
@@ -140,6 +163,7 @@ class InputChannelSplitConv2d(nn.Module):
             end_idx =  0
             for i in range(len(self.split_channels)):
                 end_idx +=  self.split_channels[i]
+                # print(i, start_idx, end_idx, self.split_channels,self.weight.shape)
                 self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx, :, :])
                 self.split_layers[i].bias.copy_(self.bias / len(self.split_channels))
                 start_idx = end_idx 
@@ -147,7 +171,7 @@ class InputChannelSplitConv2d(nn.Module):
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, random_split=False):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
@@ -163,6 +187,7 @@ class OutputChannelSplitLinear(nn.Module):
         else:
             self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
+        self.random_split = random_split
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
@@ -173,14 +198,29 @@ class OutputChannelSplitLinear(nn.Module):
         self.copy_weights_from()
 
     def forward(self, x):
-        split_outputs = [layer(x) for layer in self.split_layers]
-        return torch.cat(split_outputs, dim=1)  if self.combine else split_outputs # Concatenate outputs
+        if isinstance(x, list):
+            if isinstance(x[0], list):
+                # self.change_split_channels(x[1].tolist(), num_splits=len(x[1].tolist()))
+                split_outputs = [layer(x1) for x1,layer in zip(x[0], self.split_layers)]
+            else:
+                split_outputs = [layer(x1) for x1,layer in zip(x, self.split_layers)]
+        else:
+            split_outputs = [layer(x) for layer in self.split_layers]
+        split_sizes = self.split_sizes
+        if self.random_split:
+            split_outputs = torch.cat(split_outputs, dim=1)
+            split_sizes = sum_random_nums_n(split_outputs.shape[1])
+            split_outputs = torch.split(split_outputs, split_sizes, dim=1)
 
-    def change_split_channels(self, split_channels):
-        assert sum(split_channels) == self.out_features, \
+        return torch.cat(split_outputs, dim=1)  if self.combine else [split_outputs, torch.tensor(split_sizes)] # Concatenate outputs
+
+    def change_split_channels(self, split_sizes, num_splits=None):
+        if num_splits:
+            split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        assert sum(split_sizes) == self.out_features, \
             "Sum of new split_channels must equal total out_features"
 
-        self.split_sizes = split_channels
+        self.split_sizes = split_sizes
         self.split_layers = nn.ModuleList([
             nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
             for i in range(len(self.split_sizes))
@@ -229,10 +269,17 @@ class InputChannelSplitLinear(nn.Module):
         self.copy_weights_from()
 
     def forward(self, x):
-
-        split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
-        split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
-        return sum(split_outputs) if self.combine else split_outputs  # Element-wise sum if combining
+        if isinstance(x[0], list):
+            # print("check-point2",x[1])
+            split_sizes = x[1].tolist()
+            self.change_split_channels(split_channels=split_sizes)
+            split_inputs = x[0] if type(x[0]) is list else torch.split(x[0], self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+            split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        else:
+            split_sizes = self.split_sizes
+            split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+            split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        return sum(split_outputs) if self.combine else [split_outputs, torch.tensor(split_sizes)] # Element-wise sum if combining
 
     def change_split_channels(self, split_channels):
         assert sum(split_channels) == self.in_features, \
@@ -254,23 +301,31 @@ class InputChannelSplitLinear(nn.Module):
             end_idx =  0
             for i in range(len(self.split_layers)):
                 end_idx +=  self.split_sizes[i]
+                # print(i, start_idx, end_idx, self.split_layers[i],self.split_layers[i].weight.shape ,self.weight.shape)
                 self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
                 self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
                 start_idx = end_idx 
 
 
-class ParallelReLU(nn.Module):
-    def __init__(self, combine=False):
-        super(ParallelReLU, self).__init__()
-        self.relu = nn.ReLU()
+class ParallelActivations(nn.Module):
+    def __init__(self, activation =nn.ReLU(),  combine=False):
+        super(ParallelActivations, self).__init__()
+        self.activation = activation
         self.combine = combine
 
     def forward(self, x):
+       
         if isinstance(x, list):
-            relu_outputs = [self.relu(tensor) for tensor in x]
-            return torch.cat(relu_outputs, dim=1) if self.combine else relu_outputs
+            # print("checkpoint-1",self.activation,x[1])
+            if isinstance(x[0], list):
+                activation_outputs = [self.activation(tensor) for tensor in x[0]]
+                return torch.cat(activation_outputs, dim=1) if self.combine else [activation_outputs,x[1]]
+                
+            else:
+                activation_outputs = [self.activation(tensor) for tensor in x]
+            return torch.cat(activation_outputs, dim=1) if self.combine else activation_outputs
         elif isinstance(x, torch.Tensor):
-            return self.relu(x)
+            return self.activation(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
         
