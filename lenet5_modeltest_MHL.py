@@ -88,7 +88,7 @@ def modify_lenet5(model):
     model.classifier[1] = ParallelActivations(activation = model.classifier[1])
     model.classifier[2] = OutputChannelSplitLinear(model.classifier[2], num_splits=4, combine=False)
     model.classifier[3] = ParallelActivations(activation = model.classifier[3])
-    model.classifier[4] = InputChannelSplitLinear(model.classifier[4], num_splits=4, combine=True)
+    model.classifier[4] = InputChannelSplitLinear(model.classifier[4], num_splits=4, combine=False,  skipconnections=True)
 
     return model
 
@@ -163,7 +163,7 @@ def train_model_MHL(model, train_loader, criterion, optimizer, epochs=2):
 
         
 set =0 
-while set<30:
+while set<300:
     # train_model(model, train_loader, criterion, optimizer, epochs=1)
 
     model.classifier[4].combine = False

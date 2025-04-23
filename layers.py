@@ -99,7 +99,7 @@ class OutputChannelSplitConv2d(nn.Module):
                 
 
 class InputChannelSplitConv2d(nn.Module):
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, skipconnections = False):
         super(InputChannelSplitConv2d, self).__init__()
         # assert conv_layer.in_channels % num_splits == 0, "Input channels must be divisible by num_splits"
 
@@ -118,6 +118,7 @@ class InputChannelSplitConv2d(nn.Module):
         else:
             self.split_channels = [self.in_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
+        self.skipconnections = skipconnections
         
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.split_channels[i], self.out_channels, kernel_size=self.kernel_size,
@@ -139,6 +140,10 @@ class InputChannelSplitConv2d(nn.Module):
             split_sizes = self.split_channels 
             split_inputs = x if  isinstance(x, list) else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        if self.skipconnections:
+            split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
+            return [split_outputs,torch.tensor(split_sizes)]
+            
         return sum(split_outputs) if self.combine else [split_outputs,torch.tensor(split_sizes)]   # Element-wise sum of outputs
 
     def change_split_channels(self, split_channels, num_splits=None):
@@ -241,7 +246,7 @@ class OutputChannelSplitLinear(nn.Module):
                 
                 
 class InputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True, split_channels=None):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True, split_channels=None, skipconnections=False):
         super(InputChannelSplitLinear, self).__init__()
         # assert linear_layer.in_features % num_splits == 0, "Input features must be divisible by num_splits"
 
@@ -257,6 +262,7 @@ class InputChannelSplitLinear(nn.Module):
         else:
             self.split_sizes = [self.in_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         self.combine = combine
+        self.skipconnections =skipconnections
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
@@ -279,6 +285,10 @@ class InputChannelSplitLinear(nn.Module):
             split_sizes = self.split_sizes
             split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        if self.skipconnections:
+            split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
+            # return [split_outputs,torch.tensor(split_sizes)]
+            
         return sum(split_outputs) if self.combine else [split_outputs, torch.tensor(split_sizes)] # Element-wise sum if combining
 
     def change_split_channels(self, split_channels):
