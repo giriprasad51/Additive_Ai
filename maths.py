@@ -50,5 +50,27 @@ def sum_random_nums_n(n):
 #     n = 10
 #     print(sum_random_nums_n(n))
 
+def moe_masked(split_outputs, mask):
+    for b in range(mask.shape[0]):
+        i = 0
+        while i < mask.shape[1]:
+            if mask[b, i]:
+                # Find the end of the consecutive True segment
+                j = i
+                while j < mask.shape[1] and mask[b, j]:
+                    j += 1
+                
+                # Sum the corresponding tensors (from i to j+1 since mask has len(split_outputs)-1 elements)
+                sum_result = sum(split_outputs[k][b] for k in range(i, j+1))
+                
+                # Assign the sum to all positions in the segment
+                for k in range(i, j+1):
+                    split_outputs[k][b] = sum_result
+                
+                # Skip ahead to after this segment
+                i = j + 1
+            else:
+                i += 1
 
+        return split_outputs
 

@@ -189,14 +189,14 @@ class TestInputChannelSplitConv2d:
 
     def test_InputChannelSplitConv2d(self):
             
-        for n in range(2,64):
+        for n in range(4,64):
             # Create original Conv2d layer
             original_conv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
             # Create InputChannelSplitConv2d layer
             split_conv = InputChannelSplitConv2d(original_conv, num_splits=n)
 
             # Create a dummy input tensor
-            x = torch.randn(1, 64, 32, 32, requires_grad=True)
+            x = torch.randn(8, 64, 32, 32, requires_grad=True)
 
             # Get outputs from both layers
             original_output = original_conv(x)

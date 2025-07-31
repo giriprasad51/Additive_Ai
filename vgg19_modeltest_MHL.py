@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import time
 
-from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelActivations, ParallelMaxPool2d, ParallelDropout
+from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelActivations, ParallelDropout
 
 def test_vgg19_on_cifar():
     device = torch.device("cuda" if torch.cuda.is_available() else True)
@@ -25,7 +25,7 @@ def test_vgg19_on_cifar():
     
     # Load pretrained VGG19 model
     model = models.vgg19(num_classes=10)
-    model.load_state_dict(torch.load('./vgg19_cifar10.pth'))
+    # model.load_state_dict(torch.load('./vgg19_cifar10.pth'))
     
     # Modify classifier for CIFAR-10 (10 classes)
     model = model.to(device)
@@ -52,12 +52,14 @@ def test_vgg19_on_cifar():
 #     model.features[1] = ParallelActivations()
 #     model.features[2] = InputChannelSplitConv2d(model.features[2], num_splits=4, combine=True)
 #     model.features[3] = ParallelActivations()
-#     model.features[4] = ParallelMaxPool2d(model.features[4], combine=True)
+#     model.features[4] = ParallelActivations(model.features[4], combine=True)
+
 #     model.features[5] = OutputChannelSplitConv2d(model.features[5], num_splits=4, combine=False)
 #     model.features[6] = ParallelActivations()
 #     model.features[7] = InputChannelSplitConv2d(model.features[7], num_splits=4, combine=True)
 #     model.features[8] = ParallelActivations()
-#     model.features[9] = ParallelMaxPool2d(model.features[9], combine=True)
+#     model.features[9] = ParallelActivations(model.features[9], combine=True)
+
 #     model.features[10] = OutputChannelSplitConv2d(model.features[10], num_splits=4, combine=False)
 #     model.features[11] = ParallelActivations()
 #     model.features[12] = InputChannelSplitConv2d(model.features[12], num_splits=4, combine=True)
@@ -66,7 +68,8 @@ def test_vgg19_on_cifar():
 #     model.features[15] = ParallelActivations()
 #     model.features[16] = InputChannelSplitConv2d(model.features[16], num_splits=4, combine=True)
 #     model.features[17] = ParallelActivations()
-#     model.features[18] = ParallelMaxPool2d(model.features[18], combine=True)
+#     model.features[18] = ParallelActivations(model.features[18], combine=True)
+
 #     model.features[19] = OutputChannelSplitConv2d(model.features[19], num_splits=4, combine=False)
 #     model.features[20] = ParallelActivations()
 #     model.features[21] = InputChannelSplitConv2d(model.features[21], num_splits=4, combine=True)
@@ -75,7 +78,8 @@ def test_vgg19_on_cifar():
 #     model.features[24] = ParallelActivations()
 #     model.features[25] = InputChannelSplitConv2d(model.features[25], num_splits=4, combine=True)
 #     model.features[26] = ParallelActivations()
-#     model.features[27] = ParallelMaxPool2d(model.features[27], combine=True)
+#     model.features[27] = ParallelActivations(model.features[27], combine=True)
+    
 #     model.features[28] = OutputChannelSplitConv2d(model.features[28], num_splits=4, combine=False)
 #     model.features[29] = ParallelActivations()
 #     model.features[30] = InputChannelSplitConv2d(model.features[30], num_splits=4, combine=True)
@@ -84,7 +88,7 @@ def test_vgg19_on_cifar():
 #     model.features[33] = ParallelActivations()
 #     model.features[34] = InputChannelSplitConv2d(model.features[34], num_splits=4, combine=True)
 #     model.features[35] = ParallelActivations()
-#     model.features[36] = ParallelMaxPool2d(model.features[36], combine=True)
+#     model.features[36] = ParallelActivations(model.features[36], combine=True)
     
 #     model.classifier[0] = OutputChannelSplitLinear(model.classifier[0], num_splits=4, combine=False)
 #     model.classifier[1] = ParallelActivations()
@@ -102,13 +106,13 @@ def modify_vgg19(model):
     model.features[1] = ParallelActivations()
     model.features[2] = InputChannelSplitConv2d(model.features[2], num_splits=4, combine=True)
     model.features[3] = ParallelActivations()
-    model.features[4] = ParallelMaxPool2d(model.features[4], combine=True)
+    model.features[4] = ParallelActivations(activation=model.features[4])
 
     model.features[5] = OutputChannelSplitConv2d(model.features[5], num_splits=4, combine=False)
     model.features[6] = ParallelActivations()
     model.features[7] = InputChannelSplitConv2d(model.features[7], num_splits=4, combine=True)
     model.features[8] = ParallelActivations()
-    model.features[9] = ParallelMaxPool2d(model.features[9], combine=True)
+    model.features[9] = ParallelActivations(activation=model.features[9])
 
     model.features[10] = OutputChannelSplitConv2d(model.features[10], num_splits=4, combine=False)
     model.features[11] = ParallelActivations()
@@ -118,7 +122,7 @@ def modify_vgg19(model):
     model.features[15] = ParallelActivations()
     model.features[16] = InputChannelSplitConv2d(model.features[16], num_splits=4, combine=True)
     model.features[17] = ParallelActivations()
-    model.features[18] = ParallelMaxPool2d(model.features[18], combine=True)
+    model.features[18] = ParallelActivations(activation=model.features[18])
 
     model.features[19] = OutputChannelSplitConv2d(model.features[19], num_splits=4, combine=False)
     model.features[20] = ParallelActivations()
@@ -131,7 +135,7 @@ def modify_vgg19(model):
 
     model.features[25] = OutputChannelSplitConv2d(model.features[25], num_splits=4, combine=False)
     model.features[26] = ParallelActivations()
-    model.features[27] = ParallelMaxPool2d(model.features[27], combine=True)
+    model.features[27] = ParallelActivations(activation=model.features[27])
 
     model.features[28] = InputChannelSplitConv2d(model.features[28], num_splits=4, combine=True)
     model.features[29] = ParallelActivations()
@@ -141,17 +145,78 @@ def modify_vgg19(model):
     model.features[33] = ParallelActivations()
     model.features[34] = OutputChannelSplitConv2d(model.features[34], num_splits=4, combine=False)
     model.features[35] = ParallelActivations()
-    model.features[36] = ParallelMaxPool2d(model.features[36], combine=True)
+    model.features[36] = ParallelActivations(activation=model.features[36])
 
+    model.avgpool = ParallelActivations(activation=model.avgpool)
     
     model.classifier[0] = InputChannelSplitLinear(model.classifier[0], num_splits=4, combine=False)
     model.classifier[1] = ParallelActivations()
-    model.classifier[2] = ParallelDropout(model.classifier[2])
+    model.classifier[2] = ParallelActivations(activation=model.classifier[2])
     model.classifier[3] = OutputChannelSplitLinear(model.classifier[3], num_splits=4, combine=True)
     model.classifier[4] = ParallelActivations()
-    model.classifier[5] = ParallelDropout(model.classifier[5])
+    model.classifier[5] = ParallelActivations(activation=model.classifier[5])
     model.classifier[6] = InputChannelSplitLinear(model.classifier[6], num_splits=4, combine=True)
 
+    return model
+
+# def modify_vgg19(model):
+#     """Apply Multi-Helix Learning to VGG19 with proper alternation (O → I → O...) and skip layer 23"""
+#     model.features[0] = OutputChannelSplitConv2d(model.features[0], num_splits=4, combine=False)
+#     model.features[1] = ParallelActivations()
+#     model.features[2] = InputChannelSplitConv2d(model.features[2], num_splits=4, combine=False, skipconnections=True)
+#     model.features[3] = ParallelActivations()
+#     model.features[4] = ParallelActivations(activation=model.features[4])
+
+#     model.features[5] = OutputChannelSplitConv2d(model.features[5], num_splits=4, combine=False)
+#     model.features[6] = ParallelActivations()
+#     model.features[7] = InputChannelSplitConv2d(model.features[7], num_splits=4, combine=False, skipconnections=True)
+#     model.features[8] = ParallelActivations()
+#     model.features[9] = ParallelActivations(activation=model.features[9])
+
+#     model.features[10] = OutputChannelSplitConv2d(model.features[10], num_splits=4, combine=False)
+#     model.features[11] = ParallelActivations()
+#     model.features[12] = InputChannelSplitConv2d(model.features[12], num_splits=4, combine=False, skipconnections=True)
+#     model.features[13] = ParallelActivations()
+#     model.features[14] = OutputChannelSplitConv2d(model.features[14], num_splits=4, combine=False)
+#     model.features[15] = ParallelActivations()
+#     model.features[16] = InputChannelSplitConv2d(model.features[16], num_splits=4, combine=False, skipconnections=True)
+#     model.features[17] = ParallelActivations()
+#     model.features[18] = ParallelActivations(activation=model.features[18])
+
+#     model.features[19] = OutputChannelSplitConv2d(model.features[19], num_splits=4, combine=False)
+#     model.features[20] = ParallelActivations()
+#     model.features[21] = InputChannelSplitConv2d(model.features[21], num_splits=4, combine=True)
+#     model.features[22] = ParallelActivations()
+
+#     # 🚫 Skip 23, keep unchanged
+#     # model.features[23] = model.features[23]
+#     model.features[24] = ParallelActivations()
+
+#     model.features[25] = OutputChannelSplitConv2d(model.features[25], num_splits=4, combine=False)
+#     model.features[26] = ParallelActivations()
+#     model.features[27] = ParallelActivations(activation=model.features[27])
+
+#     model.features[28] = InputChannelSplitConv2d(model.features[28], num_splits=4, combine=False, skipconnections=True)
+#     model.features[29] = ParallelActivations()
+#     model.features[30] = OutputChannelSplitConv2d(model.features[30], num_splits=4, combine=False)
+#     model.features[31] = ParallelActivations()
+#     model.features[32] = InputChannelSplitConv2d(model.features[32], num_splits=4, combine=False, skipconnections=True)
+#     model.features[33] = ParallelActivations()
+#     model.features[34] = OutputChannelSplitConv2d(model.features[34], num_splits=4, combine=False)
+#     model.features[35] = ParallelActivations()
+#     model.features[36] = ParallelActivations(activation=model.features[36])
+
+#     model.avgpool = ParallelActivations(activation=model.avgpool)
+    
+#     model.classifier[0] = InputChannelSplitLinear(model.classifier[0], num_splits=4, combine=False, skipconnections=True)
+#     model.classifier[1] = ParallelActivations()
+#     model.classifier[2] = ParallelActivations(activation=model.classifier[2])
+#     model.classifier[3] = OutputChannelSplitLinear(model.classifier[3], num_splits=4, combine=False)
+#     model.classifier[4] = ParallelActivations()
+#     model.classifier[5] = ParallelActivations(activation=model.classifier[5])
+#     model.classifier[6] = InputChannelSplitLinear(model.classifier[6], num_splits=4, combine=True)
+
+#     return model
 
 def test_vgg19parallel_on_cifar(model):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -167,15 +232,7 @@ def test_vgg19parallel_on_cifar(model):
     test_dataset = datasets.CIFAR10(root='/scratch/pusunuru/data', train=False, download=False, transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     
-    # Load pretrained VGG19 model
-    # model = models.vgg19(num_classes=10)
-    # model.load_state_dict(torch.load('./vgg19_cifar10.pth'))
     
-    
-    # model = model.to(device)
-
-
-    # model = modify_vgg19(model)
     model.eval()
     
     # Test the model
@@ -300,11 +357,39 @@ def train_model_MHL(model, train_loader, criterion, optimizer, epochs=2):
             running_loss += loss.item()
                 
         print(f'Epoch {epoch+1}, Loss: {running_loss/len(train_loader):.4f}')
-# Load pretrained VGG19 model
-model = models.vgg19(num_classes=10)
+
+
 # model.load_state_dict(torch.load('./vgg19_cifar10.pth'))
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = model.to(device)
+
+# import inspect
+# print(inspect.getsource(model.forward))
+
+
+class CustomVGG19(nn.Module):
+    def __init__(self, num_classes=10):
+        super(CustomVGG19, self).__init__()
+        # Load pretrained VGG19 and modify the classifier
+        vgg = models.vgg19(num_classes=num_classes)
+        self.features = vgg.features
+        self.avgpool = vgg.avgpool
+        self.classifier = vgg.classifier
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # print("forward1")  # Debug print
+        x = self.features(x)
+        x = self.avgpool(x)
+        if isinstance(x, list):
+            if isinstance(x[0], list):
+                x = [torch.flatten(xi, 1) for xi in x[0]]
+            else:
+                x = [torch.flatten(xi, 1) for xi in x]
+        else:
+            x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+model = CustomVGG19(num_classes=10).to(device)
 model = modify_vgg19(model)
  # Hyperparameters
 batch_size = 128
@@ -325,16 +410,18 @@ train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=bat
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 train_loader_MHL = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=256, shuffle=True)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
-
+# optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
         
 set =0 
-while set<1:
+while set<300:
     # train_model(model, train_loader, criterion, optimizer, epochs=1)
 
     model.classifier[6].combine = False
+    model.classifier[6].skipconnections = True
     train_model_MHL(model, train_loader_MHL, criterion, optimizer, epochs=1)
     model.classifier[6].combine = True
+    model.classifier[6].skipconnections = False
     test_vgg19parallel_on_cifar(model)
 
     set+=1

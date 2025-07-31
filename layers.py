@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from maths import sum_random_nums_n
+from maths import sum_random_nums_n, moe_masked
 
 
 # For Conv2d
@@ -126,6 +126,14 @@ class InputChannelSplitConv2d(nn.Module):
             for i in range(len(self.split_channels))
         ])
 
+        # MoE Gate components
+        self.gate_input_dim = self.in_channels  # Input features for the gate
+        
+        self.gate = nn.Sequential(
+            nn.Linear(self.gate_input_dim, self.num_splits - 1),
+            nn.Sigmoid()  # Output probabilities for each potential merge point
+        )
+
         self.copy_weights_from()
 
     def forward(self, x):
@@ -140,6 +148,16 @@ class InputChannelSplitConv2d(nn.Module):
             split_sizes = self.split_channels 
             split_inputs = x if  isinstance(x, list) else torch.split(x, split_sizes, dim=1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        # self.mask = torch.randint(0, 2, (split_outputs[0].shape[0], len(split_outputs)-1)).bool() 
+        print([s.shape for s in split_inputs])
+        gate_input = torch.mean(x[0] if isinstance(x[0], list) else x, dim=[2, 3])  # [B, C]
+        gate_probs = self.gate(gate_input)  # [B, num_splits-1]
+        
+        # Generate mask from gate probabilities
+        self.mask = gate_probs > 0.5  # Threshold at 0.5
+        if self.mask:
+            split_outputs =  moe_masked(split_outputs)
+
         if self.skipconnections:
             split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
             return [split_outputs,torch.tensor(split_sizes)]
@@ -328,10 +346,14 @@ class ParallelActivations(nn.Module):
         if isinstance(x, list):
             # print("checkpoint-1",self.activation,x[1])
             if isinstance(x[0], list):
+                # print("---------------")
+                # print(self.activation, type(x[0][0]))
                 activation_outputs = [self.activation(tensor) for tensor in x[0]]
+                # print("--------end------------")
                 return torch.cat(activation_outputs, dim=1) if self.combine else [activation_outputs,x[1]]
                 
             else:
+                print("---------check-point-1----------")
                 activation_outputs = [self.activation(tensor) for tensor in x]
             return torch.cat(activation_outputs, dim=1) if self.combine else activation_outputs
         elif isinstance(x, torch.Tensor):
