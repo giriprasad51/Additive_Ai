@@ -154,9 +154,9 @@ class InputChannelSplitConv2d(nn.Module):
         gate_probs = self.gate(gate_input)  # [B, num_splits-1]
         
         # Generate mask from gate probabilities
-        self.mask = gate_probs > 0.5  # Threshold at 0.5
-        if self.mask:
-            split_outputs =  moe_masked(split_outputs)
+        # self.mask = gate_probs > 0.5  # Threshold at 0.5
+        # if self.mask:
+        #     split_outputs =  moe_masked(split_outputs)
 
         if self.skipconnections:
             split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
