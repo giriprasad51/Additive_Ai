@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-from layers import OutputChannelSplitConv2d, InputChannelSplitConv2d, OutputChannelSplitLinear, InputChannelSplitLinear, ParallelMaxPool2d
+from layers import (OutputChannelSplitConv2d, InputChannelSplitConv2d, 
+                    OutputChannelSplitLinear, InputChannelSplitLinear, 
+                    ParallelMaxPool2d, InputChannelSplitConv1D, OutputChannelSplitConv1D)
 from maths import sum_random_nums_n
 import pytest
 
