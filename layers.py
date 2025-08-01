@@ -499,3 +499,10 @@ class ParallelMaxPool2d(nn.Module):
             return self.pool(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
+        
+class ParallelGPT2MLP(nn.Module):
+    def __init__(self, gpt2mlp, combine=True, num_splits=4,split_channels=None):
+        gpt2mlp.c_fc = OutputChannelSplitConv1D(gpt2mlp.c_fc,combine=False, num_splits=num_splits, split_channels=split_channels)
+        gpt2mlp.act = ParallelActivations(gpt2mlp.act, combine=False)
+        gpt2mlp.c_proj = InputChannelSplitConv1D(gpt2mlp.c_fc,combine=combine, num_splits=num_splits, split_channels=split_channels)
+        gpt2mlp.dropout = ParallelActivations(gpt2mlp.dropout, combine=False)
