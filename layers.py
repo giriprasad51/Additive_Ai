@@ -190,6 +190,106 @@ class InputChannelSplitConv2d(nn.Module):
                 self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx, :, :])
                 self.split_layers[i].bias.copy_(self.bias / len(self.split_channels))
                 start_idx = end_idx 
+
+class OutputChannelSplitConv1D(nn.Module):
+    def __init__(self, conv_layer: nn.Conv1d, num_splits=4, combine=True, split_channels=None):
+        super(OutputChannelSplitConv1D, self).__init__()
+        self.device = conv_layer.weight.device
+        self.num_splits = num_splits
+        self.combine = combine
+
+        self.in_channels = conv_layer.in_channels
+        self.out_channels = conv_layer.out_channels
+        self.kernel_size = conv_layer.kernel_size
+        self.stride = conv_layer.stride
+        self.padding = conv_layer.padding
+        self.dilation = conv_layer.dilation
+        self.groups = conv_layer.groups
+        self.bias = conv_layer.bias is not None
+        self.rem = self.out_channels % num_splits
+
+        if split_channels:
+            self.split_sizes = split_channels
+        else:
+            self.split_sizes = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+
+        # Create split Conv1d layers
+        self.split_layers = nn.ModuleList([
+            nn.Conv1d(self.in_channels, self.split_sizes[i],
+                      kernel_size=self.kernel_size, stride=self.stride,
+                      padding=self.padding, dilation=self.dilation,
+                      groups=self.groups, bias=self.bias).to(self.device)
+            for i in range(len(self.split_sizes))
+        ])
+
+        self.copy_weights_from(conv_layer)
+
+    def forward(self, x):
+        outputs = [layer(x) for layer in self.split_layers]
+        return torch.cat(outputs, dim=1) if self.combine else outputs
+
+    def copy_weights_from(self, conv_layer):
+        with torch.no_grad():
+            start = 0
+            for i, split_layer in enumerate(self.split_layers):
+                end = start + self.split_sizes[i]
+                split_layer.weight.copy_(conv_layer.weight[start:end])
+                if self.bias:
+                    split_layer.bias.copy_(conv_layer.bias[start:end])
+                start = end
+
+class InputChannelSplitConv1D(nn.Module):
+    def __init__(self, conv_layer: nn.Conv1d, num_splits=4, combine=True, split_channels=None, skipconnections=False):
+        super(InputChannelSplitConv1D, self).__init__()
+        self.device = conv_layer.weight.device
+        self.num_splits = num_splits
+        self.combine = combine
+        self.skipconnections = skipconnections
+
+        self.in_channels = conv_layer.in_channels
+        self.out_channels = conv_layer.out_channels
+        self.kernel_size = conv_layer.kernel_size
+        self.stride = conv_layer.stride
+        self.padding = conv_layer.padding
+        self.dilation = conv_layer.dilation
+        self.groups = conv_layer.groups
+        self.bias = conv_layer.bias is not None
+        self.rem = self.in_channels % num_splits
+
+        if split_channels:
+            self.split_sizes = split_channels
+        else:
+            self.split_sizes = [self.in_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+
+        # Create split Conv1d layers
+        self.split_layers = nn.ModuleList([
+            nn.Conv1d(self.split_sizes[i], self.out_channels,
+                      kernel_size=self.kernel_size, stride=self.stride,
+                      padding=self.padding, dilation=self.dilation,
+                      groups=1, bias=self.bias).to(self.device)
+            for i in range(len(self.split_sizes))
+        ])
+
+        self.copy_weights_from(conv_layer)
+
+    def forward(self, x):
+        # x: (batch, channels, width)
+        split_inputs = torch.split(x, self.split_sizes, dim=1)
+        outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
+        if self.skipconnections:
+            outputs = [sum(outputs) + o for o in outputs]
+        return sum(outputs) if self.combine else outputs
+
+    def copy_weights_from(self, conv_layer):
+        with torch.no_grad():
+            start = 0
+            for i, split_layer in enumerate(self.split_layers):
+                end = start + self.split_sizes[i]
+                split_layer.weight.copy_(conv_layer.weight[:, start:end])
+                if self.bias:
+                    split_layer.bias.copy_(conv_layer.bias / len(self.split_layers))
+                start = end
+
                 
 
 

@@ -310,6 +310,74 @@ class TestInputChannelSplitConv2d:
     # Run the test
     # test_InputChannelSplitConv2d()
 
+class TestOutputChannelSplitConv1D:
+    def test_output_channel_split_conv1d(self):
+        for n in range(2, 32):  # output splits
+            conv = nn.Conv1d(in_channels=8, out_channels=32, kernel_size=3, padding=1)
+            split_conv = OutputChannelSplitConv1D(conv, num_splits=n)
+
+            x = torch.randn(1, 8, 16, requires_grad=True)
+
+            original_out = conv(x)
+            split_out = split_conv(x)
+
+            # Output match
+            assert original_out.shape == split_out.shape, f"Shape mismatch: {original_out.shape} vs {split_out.shape}"
+            assert torch.allclose(original_out, split_out, atol=1e-5), "Forward outputs don't match"
+
+            # Gradient check
+            loss_fn = nn.MSELoss()
+            target = torch.randn_like(original_out)
+
+            loss_original = loss_fn(original_out, target)
+            loss_original.backward()
+            grad_original = x.grad.clone()
+
+            x.grad.zero_()
+            loss_split = loss_fn(split_out, target)
+            loss_split.backward()
+            grad_split = x.grad.clone()
+
+            assert grad_original.shape == grad_split.shape, f"Grad shape mismatch: {grad_original.shape} vs {grad_split.shape}"
+            assert torch.allclose(grad_original, grad_split, atol=1e-5), "Gradient mismatch"
+
+            print(f"Passed OutputChannelSplitConv1D test with num_splits={n}")
+
+
+class TestInputChannelSplitConv1D:
+    def test_input_channel_split_conv1d(self):
+        for n in range(2, 32):  # input splits
+            conv = nn.Conv1d(in_channels=32, out_channels=16, kernel_size=3, padding=1)
+            split_conv = InputChannelSplitConv1D(conv, num_splits=n)
+
+            x = torch.randn(1, 32, 16, requires_grad=True)
+
+            original_out = conv(x)
+            split_out = split_conv(x)
+
+            # Output match
+            assert original_out.shape == split_out.shape, f"Shape mismatch: {original_out.shape} vs {split_out.shape}"
+            assert torch.allclose(original_out, split_out, atol=1e-5), "Forward outputs don't match"
+
+            # Gradient check
+            loss_fn = nn.MSELoss()
+            target = torch.randn_like(original_out)
+
+            loss_original = loss_fn(original_out, target)
+            loss_original.backward()
+            grad_original = x.grad.clone()
+
+            x.grad.zero_()
+            loss_split = loss_fn(split_out, target)
+            loss_split.backward()
+            grad_split = x.grad.clone()
+
+            assert grad_original.shape == grad_split.shape, f"Grad shape mismatch: {grad_original.shape} vs {grad_split.shape}"
+            assert torch.allclose(grad_original, grad_split, atol=1e-5), "Gradient mismatch"
+
+            print(f"Passed InputChannelSplitConv1D test with num_splits={n}")
+
+
 class TestOutputChannelSplitLinear:
 
     def test_OutputChannelSplitLinear(self):
