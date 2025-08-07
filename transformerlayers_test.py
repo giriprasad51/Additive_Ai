@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformerlayers import OutputChannelSplitConv1DGPT,InputChannelSplitConv1DGPT, ParallelGPT2MLP
 from transformers.pytorch_utils import Conv1D
+from transformers import GPT2Model, GPT2Config, GPT2Tokenizer
 
 from maths import sum_random_nums_n
 import pytest
