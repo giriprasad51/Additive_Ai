@@ -119,7 +119,6 @@ class ParallelGPT2MLP(nn.Module):
         # Parallel activation function
         self.act = ParallelActivations(
             gpt2mlp.act,
-            num_splits=num_splits,
             combine=False
         )
         
@@ -134,7 +133,6 @@ class ParallelGPT2MLP(nn.Module):
         # Parallel dropout
         self.dropout = ParallelActivations(
             gpt2mlp.dropout,
-            num_splits=num_splits,
             combine=combine
         )
         
