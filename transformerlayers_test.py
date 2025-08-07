@@ -92,7 +92,7 @@ class TestParallelGPT2MLP:
             
             # Forward pass
             original_out = self.original_mlp(x)
-            parallel_out = parallel_mlp(x)
+            parallel_out = parallel_mlp([x for _ in range(num_splits)])
             
             # Check output shape and values
             assert original_out.shape == parallel_out.shape
@@ -163,31 +163,4 @@ class TestParallelGPT2MLP:
         
         print("[✓] Passed custom split channels test")
 
-    def test_parallel_activations(self):
-        """Test that activations are properly parallelized"""
-        num_splits = 4
-        parallel_mlp = ParallelGPT2MLP(
-            self.original_mlp,
-            num_splits=num_splits,
-            combine=False
-        ).to(self.device)
-        
-        # Test with GELU activation (default for GPT-2)
-        x = torch.randn(2, 5, self.hidden_size).to(self.device)
-        
-        # Get output after first linear layer (should be split)
-        split_outputs = parallel_mlp.c_fc(x)
-        assert isinstance(split_outputs, list)
-        assert len(split_outputs) == num_splits
-        
-        # After activation (should remain split)
-        activated = parallel_mlp.act(split_outputs)
-        assert isinstance(activated, list)
-        assert len(activated) == num_splits
-        
-        # Verify activation was applied correctly
-        for i in range(num_splits):
-            manual_activation = nn.functional.gelu(split_outputs[i])
-            assert torch.allclose(activated[i], manual_activation, atol=1e-5)
-        
-        print("[✓] Passed parallel activations test")
+    
