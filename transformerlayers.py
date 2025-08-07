@@ -40,7 +40,10 @@ class OutputChannelSplitConv1DGPT(nn.Module):
                 start = end
 
     def forward(self, x):
-        out = [layer(x) for layer in self.split_layers]
+        if isinstance(x, list):
+            out = [layer(x[i]) for i, layer in enumerate(self.split_layers)]
+        else:
+            out = [layer(x) for layer in self.split_layers]
         return torch.cat(out, dim=-1) if self.combine else out
 
 class InputChannelSplitConv1DGPT(nn.Module):
@@ -80,11 +83,13 @@ class InputChannelSplitConv1DGPT(nn.Module):
                 start = end
 
     def forward(self, x):
-        splits = torch.split(x, self.split_sizes, dim=-1)
-        outputs = [layer(split) for layer, split in zip(self.split_layers, splits)]
+        if isinstance(x, list):
+            outputs = [layer(x[i]) for i, layer in enumerate(self.split_layers)]
+        else:
+            splits = torch.split(x, self.split_sizes, dim=-1)
+            outputs = [layer(split) for layer, split in zip(self.split_layers, splits)]
 
-        if self.skipconnections:
-            outputs = [sum(outputs) + o for o in outputs]
+        
 
         return sum(outputs) if self.combine else outputs
 
@@ -95,3 +100,58 @@ class ParallelGPT2MLP(nn.Module):
         gpt2mlp.act = ParallelActivations(gpt2mlp.act, combine=False)
         gpt2mlp.c_proj = InputChannelSplitConv1DGPT(gpt2mlp.c_fc,combine=combine, num_splits=num_splits, split_channels=split_channels)
         gpt2mlp.dropout = ParallelActivations(gpt2mlp.dropout, combine=False)
+
+class ParallelGPT2MLP(nn.Module):
+    def __init__(self, gpt2mlp, num_splits=4, split_channels=None, combine=True):
+        super().__init__()
+        self.num_splits = num_splits
+        self.split_channels = split_channels
+        self.combine = combine
+        
+        # Parallelize the first dense layer (output channel split)
+        self.c_fc = OutputChannelSplitConv1DGPT(
+            gpt2mlp.c_fc, 
+            num_splits=num_splits,
+            split_channels=split_channels,
+            combine=False  # Keep outputs separate for parallel processing
+        )
+        
+        # Parallel activation function
+        self.act = ParallelActivations(
+            gpt2mlp.act,
+            num_splits=num_splits,
+            combine=False
+        )
+        
+        # Parallelize the second dense layer (input channel split)
+        self.c_proj = InputChannelSplitConv1DGPT(
+            gpt2mlp.c_proj,
+            num_splits=num_splits,
+            split_channels=split_channels,
+            combine=combine  # Combine at the end unless specified otherwise
+        )
+        
+        # Parallel dropout
+        self.dropout = ParallelActivations(
+            gpt2mlp.dropout,
+            num_splits=num_splits,
+            combine=combine
+        )
+        
+        # Store original config for reference
+        self.config = gpt2mlp.config
+        
+    def forward(self, hidden_states):
+        # First dense layer (split output channels)
+        hidden_states = self.c_fc(hidden_states)
+        
+        # Activation function (processed in parallel)
+        hidden_states = self.act(hidden_states)
+        
+        # Second dense layer (split input channels)
+        hidden_states = self.c_proj(hidden_states)
+        
+        # Dropout (processed in parallel)
+        hidden_states = self.dropout(hidden_states)
+        
+        return hidden_states

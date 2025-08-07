@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from transformerlayers import OutputChannelSplitConv1DGPT,InputChannelSplitConv1DGPT
+from transformerlayers import OutputChannelSplitConv1DGPT,InputChannelSplitConv1DGPT, ParallelGPT2MLP
 from transformers.pytorch_utils import Conv1D
 
 from maths import sum_random_nums_n
@@ -60,3 +60,133 @@ class TestGPTStyleConvSplits:
             assert torch.allclose(grad1, grad2, atol=1e-5), f"Grad mismatch at split {n}"
 
             print(f"[✓] InputChannelSplitConv1DGPT passed for split={n}")
+
+class TestParallelGPT2MLP:
+    @classmethod
+    def setup_class(cls):
+        # Load a pretrained GPT-2 model
+        cls.model = GPT2Model.from_pretrained('gpt2')
+        cls.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        cls.model.to(cls.device)
+        
+        # Get the first MLP layer from the model
+        cls.original_mlp = cls.model.h[0].mlp
+        cls.hidden_size = cls.original_mlp.c_fc.weight.shape[0]
+        
+    def test_output_equivalence(self):
+        """Test that ParallelGPT2MLP produces same output as original MLP"""
+        for num_splits in [2, 4, 8]:
+            # Create parallel version
+            parallel_mlp = ParallelGPT2MLP(
+                self.original_mlp,
+                num_splits=num_splits,
+                combine=True
+            ).to(self.device)
+            
+            # Create test input
+            batch_size = 4
+            seq_length = 16
+            x = torch.randn(batch_size, seq_length, self.hidden_size).to(self.device)
+            x.requires_grad = True
+            
+            # Forward pass
+            original_out = self.original_mlp(x)
+            parallel_out = parallel_mlp(x)
+            
+            # Check output shape and values
+            assert original_out.shape == parallel_out.shape
+            assert torch.allclose(original_out, parallel_out, atol=1e-5), \
+                f"Output mismatch with {num_splits} splits"
+            
+            # Backward pass check
+            target = torch.randn_like(original_out)
+            loss_fn = nn.MSELoss()
+            
+            # Original backward
+            original_loss = loss_fn(original_out, target)
+            original_loss.backward()
+            original_grad = x.grad.clone()
+            x.grad = None
+            
+            # Parallel backward
+            parallel_loss = loss_fn(parallel_out, target)
+            parallel_loss.backward()
+            parallel_grad = x.grad.clone()
+            x.grad = None
+            
+            # Check gradients
+            assert torch.allclose(original_grad, parallel_grad, atol=1e-5), \
+                f"Gradient mismatch with {num_splits} splits"
+            
+            print(f"[✓] Passed equivalence test with {num_splits} splits")
+
+    def test_uncombined_output(self):
+        """Test that uncombined output works correctly"""
+        num_splits = 4
+        parallel_mlp = ParallelGPT2MLP(
+            self.original_mlp,
+            num_splits=num_splits,
+            combine=False
+        ).to(self.device)
+        
+        x = torch.randn(2, 8, self.hidden_size).to(self.device)
+        outputs = parallel_mlp(x)
+        
+        # Should return list of outputs
+        assert isinstance(outputs, list)
+        assert len(outputs) == num_splits
+        
+        # Combined output should match original
+        original_out = self.original_mlp(x)
+        combined_out = sum(outputs)  # For linear layers, sum is correct combination
+        assert torch.allclose(original_out, combined_out, atol=1e-5)
+
+    def test_custom_split_channels(self):
+        """Test with custom split channel sizes"""
+        split_channels = [256, 256, 512]  # Must sum to hidden_size
+        num_splits = len(split_channels)
+        
+        parallel_mlp = ParallelGPT2MLP(
+            self.original_mlp,
+            num_splits=num_splits,
+            split_channels=split_channels,
+            combine=True
+        ).to(self.device)
+        
+        x = torch.randn(3, 10, self.hidden_size).to(self.device)
+        original_out = self.original_mlp(x)
+        parallel_out = parallel_mlp(x)
+        
+        assert original_out.shape == parallel_out.shape
+        assert torch.allclose(original_out, parallel_out, atol=1e-5)
+        
+        print("[✓] Passed custom split channels test")
+
+    def test_parallel_activations(self):
+        """Test that activations are properly parallelized"""
+        num_splits = 4
+        parallel_mlp = ParallelGPT2MLP(
+            self.original_mlp,
+            num_splits=num_splits,
+            combine=False
+        ).to(self.device)
+        
+        # Test with GELU activation (default for GPT-2)
+        x = torch.randn(2, 5, self.hidden_size).to(self.device)
+        
+        # Get output after first linear layer (should be split)
+        split_outputs = parallel_mlp.c_fc(x)
+        assert isinstance(split_outputs, list)
+        assert len(split_outputs) == num_splits
+        
+        # After activation (should remain split)
+        activated = parallel_mlp.act(split_outputs)
+        assert isinstance(activated, list)
+        assert len(activated) == num_splits
+        
+        # Verify activation was applied correctly
+        for i in range(num_splits):
+            manual_activation = nn.functional.gelu(split_outputs[i])
+            assert torch.allclose(activated[i], manual_activation, atol=1e-5)
+        
+        print("[✓] Passed parallel activations test")
