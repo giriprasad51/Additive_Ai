@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .transformerlayers import OutputChannelSplitConv1DGPT,InputChannelSplitConv1DGPT
+from transformerlayers import OutputChannelSplitConv1DGPT,InputChannelSplitConv1DGPT
 from transformers.pytorch_utils import Conv1D
 
 from maths import sum_random_nums_n

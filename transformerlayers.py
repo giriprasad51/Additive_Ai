@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from .maths import sum_random_nums_n, moe_masked
-from .layers import ParallelActivations
+from maths import sum_random_nums_n, moe_masked
+from layers import ParallelActivations
 
 
 class OutputChannelSplitConv1DGPT(nn.Module):
