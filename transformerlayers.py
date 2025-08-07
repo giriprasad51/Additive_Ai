@@ -136,8 +136,6 @@ class ParallelGPT2MLP(nn.Module):
             combine=combine
         )
         
-        # Store original config for reference
-        self.config = gpt2mlp.config
         
     def forward(self, hidden_states):
         # First dense layer (split output channels)
