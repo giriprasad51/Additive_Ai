@@ -145,6 +145,6 @@ class GPT2AttentionARD(GPT2Attention):
 class GPT2BlockARD(GPT2Block):
     def __init__(self,  config, layer_idx=None):
         super().__init__(config, layer_idx=layer_idx)
-        self.attn = GPT2AttentionARD(config, layer_idx=getattr(config, "layer_idx", None))
+        self.attn = GPT2AttentionARD(config, layer_idx=layer_idx)
         self.mlp = GPT2MLPARD(4 * config.n_embd, config)
 
