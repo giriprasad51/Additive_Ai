@@ -109,10 +109,8 @@ class Conv1DARD(nn.Module):
 class GPT2MLPARD(GPT2MLP):
     def __init__(self, intermediate_size, config):
         super().__init__(intermediate_size, config)
-        self.c_fc = Conv1DARD(intermediate_size, config.hidden_size,
-                              thresh=config.ard_thresh, ard_init=config.ard_init)
-        self.c_proj = Conv1DARD(config.hidden_size, intermediate_size,
-                                thresh=config.ard_thresh, ard_init=config.ard_init)
+        self.c_fc = Conv1DARD(intermediate_size, config.hidden_size,)
+        self.c_proj = Conv1DARD(config.hidden_size, intermediate_size,)
 
     def get_reg(self):
         return self.c_fc.get_reg() + self.c_proj.get_reg()
@@ -125,15 +123,11 @@ class GPT2AttentionARD(GPT2Attention):
     def __init__(self, config, is_cross_attention=False, layer_idx=None):
         super().__init__(config, is_cross_attention=is_cross_attention, layer_idx=layer_idx)
         if is_cross_attention:
-            self.c_attn = Conv1DARD(2 * self.embed_dim, self.embed_dim,
-                                    thresh=config.ard_thresh, ard_init=config.ard_init)
-            self.q_attn = Conv1DARD(self.embed_dim, self.embed_dim,
-                                    thresh=config.ard_thresh, ard_init=config.ard_init)
+            self.c_attn = Conv1DARD(2 * self.embed_dim, self.embed_dim,)
+            self.q_attn = Conv1DARD(self.embed_dim, self.embed_dim,)
         else:
-            self.c_attn = Conv1DARD(3 * self.embed_dim, self.embed_dim,
-                                    thresh=config.ard_thresh, ard_init=config.ard_init)
-        self.c_proj = Conv1DARD(self.embed_dim, self.embed_dim,
-                                thresh=config.ard_thresh, ard_init=config.ard_init)
+            self.c_attn = Conv1DARD(3 * self.embed_dim, self.embed_dim,)
+        self.c_proj = Conv1DARD(self.embed_dim, self.embed_dim,)
 
     def get_reg(self):
         reg = self.c_attn.get_reg() + self.c_proj.get_reg()
