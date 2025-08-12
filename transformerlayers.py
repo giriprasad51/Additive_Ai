@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from maths import sum_random_nums_n, moe_masked
-from layers import ParallelActivations
+from .maths import sum_random_nums_n, moe_masked
+from .layers import ParallelActivations
 from transformers.pytorch_utils import Conv1D
 from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2Block
 
