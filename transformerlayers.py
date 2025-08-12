@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from maths import sum_random_nums_n, moe_masked
 from layers import ParallelActivations
+from transformers.pytorch_utils import Conv1D
+from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2Block
 
 
 class OutputChannelSplitConv1DGPT(nn.Module):
@@ -151,3 +153,29 @@ class ParallelGPT2MLP(nn.Module):
         hidden_states = self.dropout(hidden_states)
         
         return hidden_states
+    
+class GPT2AttentionSplit(GPT2Attention):
+    def __init__(self, config, is_cross_attention=False, layer_idx=None, dropout=1):
+        super().__init__(config, is_cross_attention=is_cross_attention, layer_idx=layer_idx)
+        
+        # Original dimensions
+        self.embed_dim = config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.head_dim = int(self.embed_dim * dropout)// self.num_heads
+        
+        # Calculate reduced dimensions with dropout
+        self.reduced_embed_dim = int(self.embed_dim * dropout)
+        # Ensure the reduced dimension is divisible by num_heads
+        self.reduced_head_dim = self.reduced_embed_dim // self.num_heads
+        self.reduced_embed_dim = self.reduced_head_dim * self.num_heads  # Adjust to maintain divisibility
+        
+        # Update projection layers with reduced dimensions
+        if self.is_cross_attention:
+            self.c_attn = Conv1D(2 * self.reduced_embed_dim, self.embed_dim)
+            self.q_attn = Conv1D(self.reduced_embed_dim, self.embed_dim)
+        else:
+            self.c_attn = Conv1D(3 * self.reduced_embed_dim, self.embed_dim)
+        self.c_proj = Conv1D(self.embed_dim, self.reduced_embed_dim)
+        
+        # Update split size for the reduced dimension
+        self.split_size = self.reduced_embed_dim
