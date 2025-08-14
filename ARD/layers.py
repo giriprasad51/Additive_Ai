@@ -143,12 +143,91 @@ class GPT2AttentionARD(GPT2Attention):
         if hasattr(self, 'q_attn'):
             cnt += self.q_attn.get_dropped_params_cnt()
         return cnt
+    
+class LayerNormARD(nn.Module):
+    def __init__(self, normalized_shape, eps=1e-5, thresh=3, ard_init=-10):
+        super().__init__()
+        self.normalized_shape = (normalized_shape,) if isinstance(normalized_shape, int) else normalized_shape
+        self.eps = eps
+        self.thresh = thresh
+        self.ard_init = ard_init
+        
+        # Standard LayerNorm parameters
+        self.weight = nn.Parameter(torch.Tensor(*self.normalized_shape))
+        self.bias = nn.Parameter(torch.Tensor(*self.normalized_shape))
+        
+        # ARD parameters (log variance for weight and bias)
+        self.log_sigma2_weight = nn.Parameter(torch.Tensor(*self.normalized_shape))
+        self.log_sigma2_bias = nn.Parameter(torch.Tensor(*self.normalized_shape))
+        
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.ones_(self.weight)
+        nn.init.zeros_(self.bias)
+        nn.init.constant_(self.log_sigma2_weight, self.ard_init)
+        nn.init.constant_(self.log_sigma2_bias, self.ard_init)
+
+    @property
+    def log_alpha_weight(self):
+        log_alpha = self.log_sigma2_weight - 2 * torch.log(abs(self.weight) + 1e-15)
+        return torch.clamp(log_alpha, -10, 10)
+
+    @property
+    def log_alpha_bias(self):
+        log_alpha = self.log_sigma2_bias - 2 * torch.log(abs(self.bias) + 1e-15)
+        return torch.clamp(log_alpha, -10, 10)
+
+    def get_clip_mask(self, log_alpha):
+        return torch.ge(log_alpha, self.thresh)
+
+    def forward(self, x):
+        # Compute mean/variance (same as standard LayerNorm)
+        mean = x.mean(-1, keepdim=True)
+        var = x.var(-1, keepdim=True, unbiased=False)
+        x_normalized = (x - mean) / torch.sqrt(var + self.eps)
+
+        if self.training:
+            # Bayesian mode: Sample weight/bias
+            std_weight = torch.exp(0.5 * self.log_sigma2_weight)
+            std_bias = torch.exp(0.5 * self.log_sigma2_bias)
+            weight_sample = self.weight + std_weight * torch.randn_like(self.weight)
+            bias_sample = self.bias + std_bias * torch.randn_like(self.bias)
+            return x_normalized * weight_sample + bias_sample
+        else:
+            # Inference: Use clipped weights (prune where log_alpha > thresh)
+            mask_weight = self.get_clip_mask(self.log_alpha_weight)
+            mask_bias = self.get_clip_mask(self.log_alpha_bias)
+            weight = torch.where(mask_weight, torch.zeros_like(self.weight), self.weight)
+            bias = torch.where(mask_bias, torch.zeros_like(self.bias), self.bias)
+            return x_normalized * weight + bias
+
+    def get_reg(self):
+        """KL divergence regularization for weight and bias."""
+        k1, k2, k3 = 0.63576, 1.8732, 1.48695
+        C = -k1
+        
+        def kl(log_alpha):
+            return k1 * torch.sigmoid(k2 + k3 * log_alpha) - 0.5 * torch.log1p(torch.exp(-log_alpha)) + C
+        
+        reg_weight = -torch.sum(kl(self.log_alpha_weight))
+        reg_bias = -torch.sum(kl(self.log_alpha_bias))
+        return reg_weight + reg_bias
 
 
 class GPT2BlockARD(GPT2Block):
     def __init__(self,  config, layer_idx=None):
         super().__init__(config, layer_idx=layer_idx)
+        hidden_size = config.hidden_size
+        inner_dim = config.n_inner if config.n_inner is not None else 4 * hidden_size
+
+        self.ln_1 = LayerNormARD(hidden_size, eps=config.layer_norm_epsilon)
         self.attn = GPT2AttentionARD(config, layer_idx=layer_idx)
+        self.ln_2 = LayerNormARD(hidden_size, eps=config.layer_norm_epsilon)
+        if config.add_cross_attention:
+            self.crossattention = GPT2Attention(config=config, is_cross_attention=True, layer_idx=layer_idx)
+            self.ln_cross_attn = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
+
         self.mlp = GPT2MLPARD(4 * config.n_embd, config)
 
 
@@ -322,7 +401,8 @@ def get_ard_reg(module):
     :param reg: auxilary cumulative variable for recursion
     :return: total regularization for module
     """
-    if isinstance(module, LinearARD) or isinstance(module, Conv2dARD):
+    if hasattr(module, 'get_reg'):
+        # Case 1: Module is an ARD layer (LinearARD, Conv1DARD, LayerNormARD, etc.)
         return module.get_reg()
     elif hasattr(module, 'children'):
         return sum([get_ard_reg(submodule) for submodule in module.children()])
