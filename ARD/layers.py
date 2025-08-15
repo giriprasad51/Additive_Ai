@@ -180,6 +180,13 @@ class LayerNormARD(nn.Module):
 
     def get_clip_mask(self, log_alpha):
         return torch.ge(log_alpha, self.thresh)
+    
+    def get_dropped_params_cnt(self):
+        """
+        Get number of dropped weights (with log alpha greater than "thresh" parameter)
+        :returns number of dropped weights
+        """
+        return self.get_clip_mask().sum().item()
 
     def forward(self, x):
         # Compute mean/variance (same as standard LayerNorm)
