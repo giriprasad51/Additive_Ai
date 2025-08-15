@@ -186,7 +186,7 @@ class LayerNormARD(nn.Module):
         Get number of dropped weights (with log alpha greater than "thresh" parameter)
         :returns number of dropped weights
         """
-        return self.get_clip_mask().sum().item()
+        return self.get_clip_mask(self.log_alpha_weight) +  self.get_clip_mask(self.log_alpha_bias)
 
     def forward(self, x):
         # Compute mean/variance (same as standard LayerNorm)
