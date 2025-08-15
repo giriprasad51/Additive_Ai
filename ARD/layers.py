@@ -265,7 +265,8 @@ class LinearARD(torch.nn.Module):
             if self.bias is not None : output += self.bias
         else:
             W = self.weights_clipped
-            output = torch.nn.functional.linear(input, W) + self.bias
+            output = torch.nn.functional.linear(input, W) 
+            if self.bias is not None : output += self.bias
         return output
 
     @property
