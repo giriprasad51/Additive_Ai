@@ -1,12 +1,29 @@
 # Abstract
 
-In this work, we introduce Additive AI, a novel framework for exploring and training deep learning models through structured architectural variation and gradient-level cooperation. We define a model family composed of binary compositional structures, where each + (addition) operation represents a binary decision to activate or skip a submodule, such as a subactivation layer or residual connection. This yields an exponentially large space of ( 2^n ) model architectures from a shared parameter pool, where n is the number of additive decisions. 
+In this work, we introduce Additive AI, a framework for training deep learning models through structured architectural variation. We will define a model family where each + operation will control whether a submodule (e.g., residual block) is activated or skipped, creating 2ⁿ architectures from *n* binary decisions.
 
-To systematically analyze this architecture space, we conduct a parallel evaluation across multiple GPUs (Exp 1), where each GPU executes a unique structure on the same dataset. This allows us to directly compare performance metrics and identify top-K high-performing structures. In Exp 2, we co-train these top-K models using a distributed gradient averaging scheme via ring AllReduce, enabling architectural diversity while maintaining a unified training signal. In Exp 3, we propose a form of structural regularization by randomly activating or deactivating + operations during training, akin to dropout at the architectural level. This stochastic gating encourages robust feature learning and reduces overfitting by preventing reliance on any single fixed path. Together, these methods introduce a flexible and efficient approach to model structure exploration, ensemble-style training, and architectural regularization, opening new directions in neural architecture search and dynamic model design.
+# Track 1
+Experiment 1: Parallel Architecture Search 
+We will deploy a multi-GPU system where each GPU will train a unique architecture on the same dataset. Performance metrics will be compared to identify the top-K structures.
 
-In Exp 4, In contrast to standard Mixture of Experts (MoE) models—where all experts share the same structure and only differ by routing—Additive AI defines an exponential family of expert models ( ( 2^n ) variants) that differ structurally through binary decisions applied to + (addition) operations. Each + operation in the architecture acts as a gate, controlling whether a submodule (e.g., subactivation, residual block) is included or skipped, resulting in a diverse set of model structures with shared weights.
+Experiment 2: Gradient-Cooperative Training
+The top-K models will be co-trained using distributed gradient averaging (ring AllReduce) to merge their learning signals while preserving architectural diversity.
 
-Finally In Exp 5, we introduce a training booster and model compression approach inspired by the concept of strong and weak neurons. Lightweight models (with reduced dimensionality) are trained in parallel on data clusters for a few epochs, then synchronized to a larger base model rest of epochs larger model will train on pipeline or zero offload training. This approach accelerates early-stage convergence and enables scalable model compression. The compression strategy draws on ideas from our prior work, DiasDNN-VD, which used variational dropouts in a divide-and-conquer fashion for asynchronous DNN training. Additive AI thus offers a unified path for structure-aware training, compression, and performance optimization for large-scale language models.
+Experiment 3: Stochastic Structural Regularization
+During training, we will randomly gate + operations (like "architectural dropout") to prevent overfitting and encourage robust feature reuse.
+
+Experiment 4: In contrast to standard Mixture of Experts (MoE) models—where all experts share the same structure and only differ by routing—Additive AI defines an exponential family of expert models ( ( 2^n ) variants) that differ structurally through binary decisions applied to + (addition) operations. Each + operation in the architecture acts as a gate, controlling whether a submodule (e.g., subactivation, residual block) is included or skipped, resulting in a diverse set of model structures with shared weights.
+
+# Track 2
+
+we introduce a  model compression  and training booster inspired by the concept of strong and weak neurons. 
+
+Experiment 1: In this experiment, we explore model compression using Automatic Relevance Determination (ARD). First, we replace standard model layers with ARD layers and train for a short duration (1–2 epochs) to induce sparsity. Next, we compress the model by reducing its dimensionality, selecting weights based on their ARD scores (combining both strong and weak weights). The compressed model is then training from scarch/fine-tuned on the full dataset, and we evaluate the impact of different dropout percentages on accuracy.
+
+Experiment 2: In this experiment compressed/small models (with reduced dimensionality) with sum of dropout percentage is 100% are trained in parallel on data clusters for a few epochs, then synchronized to a larger base model rest of epochs larger model will train on pipeline or zero offload training. This approach accelerates early-stage convergence.
+
+
+
 
 # MLP
 <table>
