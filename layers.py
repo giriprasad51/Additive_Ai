@@ -427,11 +427,11 @@ class InputChannelSplitLinear(nn.Module):
 
             return [split_outputs, torch.tensor(self.structs)] # Element-wise sum if combining
 
-    def change_split_channels(self, split_channels):
-        assert sum(split_channels) == self.in_features, \
+    def change_split_channels(self, split_sizes):
+        assert sum(split_sizes) == self.in_features, \
             "Sum of new split_channels must equal total in_features"
 
-        self.split_sizes = split_channels
+        self.split_sizes = split_sizes
         self.split_layers = nn.ModuleList([
             nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
             for i in range(len(self.split_sizes))

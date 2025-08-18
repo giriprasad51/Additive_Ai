@@ -456,7 +456,7 @@ class TestOutputChannelSplitLinear:
             split_channels = sum_random_nums_n(64)
             print(split_channels)
 
-            parallel_linear.change_split_channels(split_channels=split_channels)
+            parallel_linear.change_split_channels(split_sizes=split_channels)
             # Create a dummy input tensor
             x = torch.randn(1, 16, requires_grad=True)
             
@@ -587,7 +587,7 @@ class TestInputChannelSplitLinear:
             split_channels = sum_random_nums_n(64)
             print(split_channels)
 
-            split_linear.change_split_channels(split_channels=split_channels)
+            split_linear.change_split_channels(split_sizes=split_channels)
 
             # Create a dummy input tensor
             x = torch.randn(1, 64, requires_grad=True)
