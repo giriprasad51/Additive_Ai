@@ -422,7 +422,7 @@ class InputChannelSplitLinear(nn.Module):
                 if self.structs[i]:
                     tem_outputs[-1] += split_outputs[i+1]
                 else:
-                    tem_outputs.append(split_outputs[i])
+                    tem_outputs.append(split_outputs[i+1])
             split_outputs = tem_outputs
 
             return [split_outputs, torch.tensor(self.structs)] # Element-wise sum if combining
