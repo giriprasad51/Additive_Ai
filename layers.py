@@ -364,7 +364,7 @@ class OutputChannelSplitLinear(nn.Module):
                 
                 
 class InputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True, split_channels=None, skipconnections=False):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine=True, split_channels=None, structs=None, skipconnections=False):
         super(InputChannelSplitLinear, self).__init__()
         # assert linear_layer.in_features % num_splits == 0, "Input features must be divisible by num_splits"
 
@@ -379,6 +379,11 @@ class InputChannelSplitLinear(nn.Module):
             self.split_sizes = split_channels
         else:
             self.split_sizes = [self.in_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        if structs:
+            self.structs = structs
+        else:
+            self.structs = [True for i in range(len(self.split_sizes)-1)]
+
         self.combine = combine
         self.skipconnections =skipconnections
 
@@ -406,8 +411,20 @@ class InputChannelSplitLinear(nn.Module):
         if self.skipconnections:
             split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
             # return [split_outputs,torch.tensor(split_sizes)]
-            
-        return sum(split_outputs) if self.combine else [split_outputs, torch.tensor(split_sizes)] # Element-wise sum if combining
+
+        if self.combine: 
+            return sum(split_outputs)
+        
+        else:
+            tem_outputs = [split_outputs[0]]
+            for i in range(len(self.structs)):
+                if self.structs[i]:
+                    tem_outputs[-1] =+ split_outputs[i+1]
+                else:
+                    tem_outputs = tem_outputs.append(split_outputs[i])
+            split_outputs = tem_outputs
+
+            return [split_outputs, torch.tensor(self.structs)] # Element-wise sum if combining
 
     def change_split_channels(self, split_channels):
         assert sum(split_channels) == self.in_features, \

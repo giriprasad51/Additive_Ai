@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 from .maths import sum_random_nums_n, moe_masked
-from .layers import ParallelActivations
+from .layers import ParallelActivations, OutputChannelSplitLinear, InputChannelSplitLinear
 from transformers.pytorch_utils import Conv1D
 from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2Block
+from transformers.activations import ACT2FN
 
 
 class OutputChannelSplitConv1DGPT(nn.Module):
@@ -179,3 +180,26 @@ class GPT2AttentionSplit(GPT2Attention):
         
         # Update split size for the reduced dimension
         self.split_size = self.reduced_embed_dim
+
+class DeepseekV2MLP1(nn.Module):
+    def __init__(self, config, hidden_size=None, intermediate_size=None):
+        super().__init__()
+        self.config = config
+        self.hidden_size = config.hidden_size if hidden_size is None else hidden_size
+        self.intermediate_size = (
+            config.intermediate_size if intermediate_size is None else intermediate_size
+        )
+
+        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
+        self.act_fn = ACT2FN[config.hidden_act]
+
+        self.gate_proj = OutputChannelSplitLinear(self.gate_proj, num_splits=6, combine = False)
+        self.up_proj = OutputChannelSplitLinear(self.up_proj, num_splits=6, combine = False)
+        self.act_fn = ParallelActivations(self.act_fn)
+        self.down_proj =  InputChannelSplitLinear(self.down_proj, num_splits=6, combine = False)
+
+    def forward(self, x):
+        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+        return down_proj
