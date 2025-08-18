@@ -508,7 +508,7 @@ class TestOutputChannelSplitLinear:
     # Run the test
     # test_OutputChannelSplitLinear()
 
-class TestOutputChannelSplitLinear:
+class TestInputChannelSplitLinear:
 
     def test_InputChannelSplitLinear(self):
         
