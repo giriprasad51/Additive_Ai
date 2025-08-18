@@ -419,7 +419,7 @@ class InputChannelSplitLinear(nn.Module):
             tem_outputs = [split_outputs[0]]
             for i in range(len(self.structs)):
                 if self.structs[i]:
-                    tem_outputs[-1] =+ split_outputs[i+1]
+                    tem_outputs[-1] += split_outputs[i+1]
                 else:
                     tem_outputs = tem_outputs.append(split_outputs[i])
             split_outputs = tem_outputs
