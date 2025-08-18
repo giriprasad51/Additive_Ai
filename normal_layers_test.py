@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
-from .layers import (OutputChannelSplitConv2d, InputChannelSplitConv2d, 
+import numpy as np
+from layers import (OutputChannelSplitConv2d, InputChannelSplitConv2d, 
                     OutputChannelSplitLinear, InputChannelSplitLinear, 
                     ParallelMaxPool2d, InputChannelSplitConv1D, OutputChannelSplitConv1D)
-from .maths import sum_random_nums_n
+from maths import sum_random_nums_n
 import pytest
+
 
 
 class TestOutputChannelSplitConv2d:
@@ -516,8 +518,9 @@ class TestInputChannelSplitLinear:
             # Create original Linear layer
             original_linear = nn.Linear(in_features=64, out_features=64)
             
+            structs = np.random.choice([True, False], size=n-1).tolist()
             # Create InputChannelSplitLinear layer
-            split_linear = InputChannelSplitLinear(original_linear, num_splits=n)
+            split_linear = InputChannelSplitLinear(original_linear, combine=False, num_splits=n, structs=structs)
             
             # Create a dummy input tensor
             x = torch.randn(1, 64, requires_grad=True)
@@ -525,6 +528,8 @@ class TestInputChannelSplitLinear:
             # Get outputs from both layers
             original_output = original_linear(x)
             split_output = split_linear(x)
+
+            split_output = sum(split_output[0])
             
             # Check shape consistency
             assert original_output.shape == split_output.shape, f"Shape mismatch: {original_output.shape} vs {split_output.shape}"
