@@ -208,7 +208,7 @@ class DeepseekV2MLP1(nn.Module):
         return down_proj
     
 class DeepseekV2MLPSplit(nn.Module):
-    def __init__(self, deepseekv2mlp, num_splits, struct=None):
+    def __init__(self, deepseekv2mlp, num_splits=None, struct=None):
         super().__init__()
         self.config = deepseekv2mlp.config
         self.hidden_size = self.config.hidden_size 
@@ -225,10 +225,10 @@ class DeepseekV2MLPSplit(nn.Module):
         self.down_proj = deepseekv2mlp.down_proj
         self.act_fn = ACT2FN[self.config.hidden_act]
 
-        self.gate_proj = OutputChannelSplitLinear(self.gate_proj, num_splits=self.num_splits, combine = False)
-        self.up_proj = OutputChannelSplitLinear(self.up_proj, num_splits=self.num_splits, combine = False)
+        self.gate_proj = InputChannelSplitLinear(self.gate_proj, num_splits=self.num_splits, combine=False, structs=self.structs)
+        self.up_proj = InputChannelSplitLinear(self.up_proj, num_splits=self.num_splits, combine=False, structs=self.structs)
         self.act_fn = ParallelActivations(self.act_fn, combine=False)
-        self.down_proj =  InputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine = False, )
+        self.down_proj =  OutputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine=True, structs=self.structs)
 
     def forward(self, x):
         x1 = self.act_fn(self.gate_proj(x)[0])
