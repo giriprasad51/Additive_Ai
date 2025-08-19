@@ -5,6 +5,7 @@ from .layers import ParallelActivations, OutputChannelSplitLinear, InputChannelS
 from transformers.pytorch_utils import Conv1D
 from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2Block
 from transformers.activations import ACT2FN
+import numpy as np
 
 
 class OutputChannelSplitConv1DGPT(nn.Module):
@@ -207,23 +208,27 @@ class DeepseekV2MLP1(nn.Module):
         return down_proj
     
 class DeepseekV2MLPSplit(nn.Module):
-    def __init__(self, deepseekv2mlp):
+    def __init__(self, deepseekv2mlp, num_splits, struct=None):
         super().__init__()
         self.config = deepseekv2mlp.config
         self.hidden_size = self.config.hidden_size 
         self.intermediate_size = (
             self.config.intermediate_size 
         )
-
+        self.num_splits = num_splits
+        if struct:
+            self.structs = struct
+        else:
+            self.structs = np.random.choice([True], size=self.num_splits-1).tolist()
         self.gate_proj = deepseekv2mlp.gate_proj
         self.up_proj = deepseekv2mlp.up_proj
         self.down_proj = deepseekv2mlp.down_proj
         self.act_fn = ACT2FN[self.config.hidden_act]
 
-        self.gate_proj = OutputChannelSplitLinear(self.gate_proj, num_splits=6, combine = False)
-        self.up_proj = OutputChannelSplitLinear(self.up_proj, num_splits=6, combine = False)
+        self.gate_proj = OutputChannelSplitLinear(self.gate_proj, num_splits=self.num_splits, combine = False)
+        self.up_proj = OutputChannelSplitLinear(self.up_proj, num_splits=self.num_splits, combine = False)
         self.act_fn = ParallelActivations(self.act_fn, combine=False)
-        self.down_proj =  InputChannelSplitLinear(self.down_proj, num_splits=6, combine = False)
+        self.down_proj =  InputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine = False, )
 
     def forward(self, x):
         x1 = self.act_fn(self.gate_proj(x)[0])
