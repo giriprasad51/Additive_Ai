@@ -463,7 +463,8 @@ class InputChannelSplitLinear(nn.Module):
                 end_idx +=  self.split_sizes[i]
                 # print(i, start_idx, end_idx, self.split_layers[i],self.split_layers[i].weight.shape ,self.weight.shape)
                 self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
-                self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
+                if self.bias:
+                    self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
                 start_idx = end_idx 
 
 
