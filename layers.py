@@ -373,7 +373,8 @@ class OutputChannelSplitLinear(nn.Module):
             for i in range(len(self.split_sizes)):
                 end_idx +=  self.split_sizes[i]
                 self.split_layers[i].weight.copy_(self.weight[start_idx:end_idx])
-                self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
+                if self.bias:
+                    self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
                 start_idx = end_idx 
                 
                 
