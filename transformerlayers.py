@@ -217,18 +217,18 @@ class DeepseekV2MLPSplit(nn.Module):
         )
         self.num_splits = num_splits
         if struct:
-            self.structs = struct
+            self.struct = struct
         else:
-            self.structs = np.random.choice([True], size=self.num_splits-1).tolist()
+            self.struct = np.random.choice([True], size=self.num_splits-1).tolist()
         self.gate_proj = deepseekv2mlp.gate_proj
         self.up_proj = deepseekv2mlp.up_proj
         self.down_proj = deepseekv2mlp.down_proj
         self.act_fn = ACT2FN[self.config.hidden_act]
 
-        self.gate_proj = InputChannelSplitLinear(self.gate_proj, num_splits=self.num_splits, combine=False, structs=self.structs)
-        self.up_proj = InputChannelSplitLinear(self.up_proj, num_splits=self.num_splits, combine=False, structs=self.structs)
+        self.gate_proj = InputChannelSplitLinear(self.gate_proj, num_splits=self.num_splits, combine=False, struct=self.struct)
+        self.up_proj = InputChannelSplitLinear(self.up_proj, num_splits=self.num_splits, combine=False, struct=self.struct)
         self.act_fn = ParallelActivations(self.act_fn, combine=False)
-        self.down_proj =  OutputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine=True, structs=self.structs)
+        self.down_proj =  OutputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine=True, struct=self.struct)
 
     def forward(self, x):
         x1 = self.act_fn(self.gate_proj(x)[0])
