@@ -345,11 +345,11 @@ class OutputChannelSplitLinear(nn.Module):
 
     def change_split_channels(self, split_sizes = None, num_splits=None, structs =None):
         if num_splits:
-            split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
-        assert sum(split_sizes) == self.out_features, \
+            self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        assert sum(self.split_sizes) == self.out_features, \
             "Sum of new split_channels must equal total out_features"
-
-        self.split_sizes = split_sizes
+        if split_sizes:
+            self.split_sizes = split_sizes
         
         if structs:
             self.structs = structs
