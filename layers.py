@@ -320,7 +320,7 @@ class OutputChannelSplitLinear(nn.Module):
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
+            nn.Linear(self.in_features, self.split_sizes[i], bias=self.bias!=None).to(self.device)
             for i in range(len(self.split_sizes))
         ])
 
@@ -359,7 +359,7 @@ class OutputChannelSplitLinear(nn.Module):
 
         
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
+            nn.Linear(self.in_features, self.split_sizes[i], bias=self.bias!=None).to(self.device)
             for i in range(len(self.split_sizes))
         ])
         self.copy_weights_from()
@@ -373,7 +373,7 @@ class OutputChannelSplitLinear(nn.Module):
             for i in range(len(self.split_sizes)):
                 end_idx +=  self.split_sizes[i]
                 self.split_layers[i].weight.copy_(self.weight[start_idx:end_idx])
-                if self.bias:
+                if self.bias!=None:
                     self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
                 start_idx = end_idx 
                 
@@ -404,7 +404,7 @@ class InputChannelSplitLinear(nn.Module):
 
         # Create multiple smaller linear layers
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
+            nn.Linear(self.split_sizes[i], self.out_features, bias=self.bias!=None).to(self.device)
             for i in range(len(self.split_sizes))
         ])
 
@@ -447,7 +447,7 @@ class InputChannelSplitLinear(nn.Module):
 
         self.split_sizes = split_sizes
         self.split_layers = nn.ModuleList([
-            nn.Linear(self.split_sizes[i], self.out_features).to(self.device)
+            nn.Linear(self.split_sizes[i], self.out_features, bias=self.bias!=None).to(self.device)
             for i in range(len(self.split_sizes))
         ])
         self.copy_weights_from()
@@ -463,7 +463,7 @@ class InputChannelSplitLinear(nn.Module):
                 end_idx +=  self.split_sizes[i]
                 # print(i, start_idx, end_idx, self.split_layers[i],self.split_layers[i].weight.shape ,self.weight.shape)
                 self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
-                if self.bias:
+                if self.bias!=None:
                     self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
                 start_idx = end_idx 
 
