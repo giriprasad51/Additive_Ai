@@ -197,9 +197,11 @@ class DeepseekV2MLP1(nn.Module):
 
         self.gate_proj = OutputChannelSplitLinear(self.gate_proj, num_splits=6, combine = False)
         self.up_proj = OutputChannelSplitLinear(self.up_proj, num_splits=6, combine = False)
-        self.act_fn = ParallelActivations(self.act_fn)
+        self.act_fn = ParallelActivations(self.act_fn, combine=False)
         self.down_proj =  InputChannelSplitLinear(self.down_proj, num_splits=6, combine = False)
 
     def forward(self, x):
-        down_proj = self.down_proj(torch.tensor(self.act_fn(self.gate_proj(x)[0])) * torch.tensor(self.up_proj(x)[0]) )
+        x1 = self.act_fn(self.gate_proj(x)[0])
+        x2 = self.up_proj(x)[0]
+        down_proj = self.down_proj([x1[i] * x2[i] for i in range(len(x1))])
         return down_proj
