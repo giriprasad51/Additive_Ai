@@ -294,7 +294,7 @@ class InputChannelSplitConv1D(nn.Module):
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, random_split=False):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, structs=None, random_split=False):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
@@ -309,6 +309,12 @@ class OutputChannelSplitLinear(nn.Module):
             self.split_sizes = split_channels
         else:
             self.split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
+        if structs:
+            self.structs = structs
+            for i in reversed(range(len(self.structs))):  # Start from end
+                if self.structs[i]:
+                    self.split_sizes[i] += self.split_sizes.pop(i + 1)
+
         self.combine = combine
         self.random_split = random_split
 
@@ -337,13 +343,21 @@ class OutputChannelSplitLinear(nn.Module):
 
         return torch.cat(split_outputs, dim=1)  if self.combine else [split_outputs, torch.tensor(split_sizes)] # Concatenate outputs
 
-    def change_split_channels(self, split_sizes, num_splits=None):
+    def change_split_channels(self, split_sizes = None, num_splits=None, structs =None):
         if num_splits:
             split_sizes = [self.out_features // num_splits + (1 if i < self.rem else 0) for i in range(num_splits)]
         assert sum(split_sizes) == self.out_features, \
             "Sum of new split_channels must equal total out_features"
 
         self.split_sizes = split_sizes
+        
+        if structs:
+            self.structs = structs
+            for i in reversed(range(len(self.structs))):  # Start from end
+                if self.structs[i]:
+                    self.split_sizes[i] += self.split_sizes.pop(i + 1)
+
+        
         self.split_layers = nn.ModuleList([
             nn.Linear(self.in_features, self.split_sizes[i]).to(self.device)
             for i in range(len(self.split_sizes))
@@ -417,13 +431,12 @@ class InputChannelSplitLinear(nn.Module):
             return sum(split_outputs)
         
         else:
-            tem_outputs = [split_outputs[0]]
-            for i in range(len(self.structs)):
+            
+            for i in reversed(range(len(self.structs))):  # Start from end
                 if self.structs[i]:
-                    tem_outputs[-1] += split_outputs[i+1]
-                else:
-                    tem_outputs.append(split_outputs[i+1])
-            split_outputs = tem_outputs
+                    split_outputs[i] += split_outputs.pop(i + 1)
+                
+                
 
             return [split_outputs, torch.tensor(self.structs)] # Element-wise sum if combining
 
