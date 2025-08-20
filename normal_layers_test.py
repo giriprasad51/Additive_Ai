@@ -392,8 +392,8 @@ class TestOutputChannelSplitLinear:
             
             # Create OutputChannelSplitLinear layer
             parallel_linear = OutputChannelSplitLinear(original_linear, num_splits=n)
-            structs = np.random.choice([True, False], size=n-1).tolist()
-            parallel_linear.change_split_channels(structs=structs)
+            struct = np.random.choice([True, False], size=n-1).tolist()
+            parallel_linear.change_split_channels(struct=struct)
             
             # Create a dummy input tensor
             x = torch.randn(1, 16, requires_grad=True)
@@ -519,9 +519,9 @@ class TestInputChannelSplitLinear:
             # Create original Linear layer
             original_linear = nn.Linear(in_features=64, out_features=64)
             
-            structs = np.random.choice([True, False], size=n-1).tolist()
+            struct = np.random.choice([True, False], size=n-1).tolist()
             # Create InputChannelSplitLinear layer
-            split_linear = InputChannelSplitLinear(original_linear, combine=False, num_splits=n, structs=structs)
+            split_linear = InputChannelSplitLinear(original_linear, combine=False, num_splits=n, struct=struct)
             
             # Create a dummy input tensor
             x = torch.randn(1, 64, requires_grad=True)

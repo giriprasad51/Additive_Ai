@@ -486,7 +486,7 @@ class ParallelActivations(nn.Module):
                 return torch.cat(activation_outputs, dim=1) if self.combine else [activation_outputs,x[1]]
                 
             else:
-                print("---------check-point-1----------")
+                # print("---------check-point-1----------")
                 activation_outputs = [self.activation(tensor) for tensor in x]
             return torch.cat(activation_outputs, dim=1) if self.combine else activation_outputs
         elif isinstance(x, torch.Tensor):
