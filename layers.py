@@ -421,7 +421,7 @@ class InputChannelSplitLinear(nn.Module):
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         else:
             split_sizes = self.split_sizes
-            split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
+            split_inputs = x if type(x) is list else torch.split(x, self.split_sizes, dim=-1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         if self.skipconnections:
             split_outputs = [sum(split_outputs)+split_output for split_output in split_outputs]
