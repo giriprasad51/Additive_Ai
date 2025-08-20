@@ -231,11 +231,6 @@ class DeepseekV2MLPSplit(nn.Module):
         self.down_proj =  OutputChannelSplitLinear(self.down_proj, num_splits=self.num_splits, combine=True, struct=self.struct)
 
     def forward(self, x):
-        if isinstance(x, list):
-            pass
-        else:
-            split_sizes = [x.shape[1] // self.num_splits + (1 if i < x.shape[1] % self.num_splits else 0) for i in range(self.num_splits)]
-            x = torch.split(x, split_sizes, dim=1)
         x1 = self.act_fn(self.gate_proj(x)[0])
         x2 = self.up_proj(x)[0]
         down_proj = self.down_proj([x1[i] * x2[i] for i in range(len(x1))])
