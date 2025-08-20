@@ -6,6 +6,8 @@ from layers import (OutputChannelSplitConv2d, InputChannelSplitConv2d,
                     ParallelMaxPool2d, InputChannelSplitConv1D, OutputChannelSplitConv1D)
 from maths import sum_random_nums_n
 import pytest
+import copy
+
 
 
 
@@ -391,7 +393,7 @@ class TestOutputChannelSplitLinear:
             original_linear = nn.Linear(in_features=16, out_features=64)
             
             # Create OutputChannelSplitLinear layer
-            parallel_linear = OutputChannelSplitLinear(original_linear, num_splits=n)
+            parallel_linear = OutputChannelSplitLinear(copy.deepcopy(original_linear), num_splits=n)
             struct = np.random.choice([True, False], size=n-1).tolist()
             parallel_linear.change_split_channels(struct=struct)
             
@@ -450,7 +452,7 @@ class TestOutputChannelSplitLinear:
         original_linear = nn.Linear(in_features=16, out_features=64)
         
         # Create OutputChannelSplitLinear layer
-        parallel_linear = OutputChannelSplitLinear(original_linear, split_channels=[32,32])
+        parallel_linear = OutputChannelSplitLinear(copy.deepcopy(original_linear), split_channels=[32,32])
         
         for _ in range(20):
             
@@ -521,7 +523,7 @@ class TestInputChannelSplitLinear:
             
             struct = np.random.choice([True, False], size=n-1).tolist()
             # Create InputChannelSplitLinear layer
-            split_linear = InputChannelSplitLinear(original_linear, combine=False, num_splits=n, struct=struct)
+            split_linear = InputChannelSplitLinear(copy.deepcopy(original_linear), combine=False, num_splits=n, struct=struct)
             
             # Create a dummy input tensor
             x = torch.randn(1, 64, requires_grad=True)
@@ -581,7 +583,7 @@ class TestInputChannelSplitLinear:
         original_linear = nn.Linear(in_features=64, out_features=64)
         
         # Create InputChannelSplitLinear layer
-        split_linear = InputChannelSplitLinear(original_linear, split_channels=[32,32])
+        split_linear = InputChannelSplitLinear(copy.deepcopy(original_linear), split_channels=[32,32])
 
         for _ in range(20):
             

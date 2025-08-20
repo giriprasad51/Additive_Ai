@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .maths import sum_random_nums_n, moe_masked
+from maths import sum_random_nums_n, moe_masked
 
 
 # For Conv2d
@@ -372,9 +372,9 @@ class OutputChannelSplitLinear(nn.Module):
             end_idx =  0
             for i in range(len(self.split_sizes)):
                 end_idx +=  self.split_sizes[i]
-                self.split_layers[i].weight.copy_(self.weight[start_idx:end_idx])
+                self.split_layers[i].weight = nn.Parameter(self.weight[start_idx:end_idx])
                 if self.bias is not None:
-                    self.split_layers[i].bias.copy_(self.bias[start_idx:end_idx]) 
+                    self.split_layers[i].bias =  nn.Parameter(self.bias[start_idx:end_idx]) 
                 start_idx = end_idx 
                 
                 
@@ -459,13 +459,24 @@ class InputChannelSplitLinear(nn.Module):
         with torch.no_grad():
             start_idx = 0
             end_idx =  0
-            for i in range(len(self.split_layers)):
-                end_idx +=  self.split_sizes[i]
-                # print(i, start_idx, end_idx, self.split_layers[i],self.split_layers[i].weight.shape ,self.weight.shape)
-                self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
+            # for i in range(len(self.split_layers)):
+            #     end_idx +=  self.split_sizes[i]
+            #     # print(i, start_idx, end_idx, self.split_layers[i],self.split_layers[i].weight.shape ,self.weight.shape)
+            #     self.split_layers[i].weight.copy_(self.weight[:, start_idx:end_idx])
+            #     if self.bias is not None:
+            #         self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
+            #     start_idx = end_idx 
+            for i, layer in enumerate(self.split_layers):
+                end_idx += self.split_sizes[i]
+    
+                # Instead of copy_ → assign directly to original slice (shared view)
+                layer.weight = nn.Parameter(self.weight[:, start_idx:end_idx], requires_grad=True)
+    
                 if self.bias is not None:
-                    self.split_layers[i].bias.copy_(self.bias / len(self.split_layers))
-                start_idx = end_idx 
+                    # each split layer points to the same bias tensor (shared)
+                    layer.bias = nn.Parameter(self.bias/ len(self.split_layers), requires_grad=True)
+    
+                start_idx = end_idx
 
 
 class ParallelActivations(nn.Module):
