@@ -339,7 +339,7 @@ class OutputChannelSplitLinear(nn.Module):
         if self.random_split:
             split_outputs = torch.cat(split_outputs, dim=1)
             split_sizes = sum_random_nums_n(split_outputs.shape[1])
-            split_outputs = torch.split(split_outputs, split_sizes, dim=1)
+            split_outputs = torch.split(split_outputs, split_sizes, dim=-1)
 
         return torch.cat(split_outputs, dim=1)  if self.combine else [split_outputs, torch.tensor(split_sizes)] # Concatenate outputs
 
