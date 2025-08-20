@@ -413,7 +413,7 @@ class InputChannelSplitLinear(nn.Module):
         self.copy_weights_from()
 
     def forward(self, x):
-        if isinstance(x[0], list):
+        if isinstance(x, list):
             # print("check-point2",x[1])
             split_sizes = x[1].tolist()
             self.change_split_channels(split_channels=split_sizes)
