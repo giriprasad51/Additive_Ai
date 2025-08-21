@@ -88,9 +88,9 @@ class InputChannelSplitLinear(nn.Module):
         if self.mode == 'both':
             x_main, x_split = x_pair
         if self.mode == 'large':
-            x_main = x_pair
+            x_main = x_pair[0]
         if self.mode == 'small':
-             x_split = x_pair
+             x_split = x_pair[0]
         
         result = 0
         if self.mode in ["large", "both"]:
@@ -192,9 +192,9 @@ class InputChannelSplitConv2d(nn.Module):
         if self.mode == 'both':
             x_main, x_split = x_pair
         if self.mode == 'large':
-            x_main = x_pair
+            x_main = x_pair[0]
         if self.mode == 'small':
-             x_split = x_pair
+            x_split = x_pair[0]
         
         result = 0
         if self.mode in ["large", "both"]:
