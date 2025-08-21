@@ -26,7 +26,7 @@ class LoRALayer():
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, dropout_per=0.5):
+    def __init__(self, linear_layer: nn.Linear, dropout_per=0.5, mode='both'):
         super().__init__()
         self.weight = linear_layer.weight
         self.bias = linear_layer.bias
@@ -34,30 +34,46 @@ class OutputChannelSplitLinear(nn.Module):
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
 
+        self.device = self.weight.device 
+        self.mode = mode
         # freeze original
         self.weight.requires_grad = False
         if self.bias is not None:
             self.bias.requires_grad = False
-
+        
         # learnable split
         split_out = int(self.out_features * dropout_per)
-        self.weight_s = nn.Parameter(torch.zeros(split_out, self.in_features))
-        self.bias_s = nn.Parameter(torch.zeros(split_out)) if self.bias is not None else None
+        self.weight_s = nn.Parameter(torch.zeros(split_out, self.in_features, device=self.device))
+        self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
-        result = F.linear(x, self.weight, self.bias)
-        result_s = F.linear(x, self.weight_s, self.bias_s)
-        return result, result_s
+        if self.mode == "both":
+            self.mode = ["large","small"]
+        output = []
+        if self.mode == 'large':
+            result = F.linear(x, self.weight, self.bias)
+            output.append(result)
+        if self.mode == 'small':
+            result_s = F.linear(x, self.weight_s, self.bias_s)
+            output.append(result_s)
+
+        return output
+    
+    def removeweight(self):
+        del self.weight,self.bias
 
 
 class InputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, dropout_per=0.5):
+    def __init__(self, linear_layer: nn.Linear, dropout_per=0.5, mode='both'):
         super().__init__()
         self.weight = linear_layer.weight
         self.bias = linear_layer.bias
 
         self.in_features = linear_layer.in_features
         self.out_features = linear_layer.out_features
+
+        self.device = self.weight.device 
+        self.mode = mode
 
         # freeze original
         self.weight.requires_grad = False
@@ -66,19 +82,27 @@ class InputChannelSplitLinear(nn.Module):
 
         # learnable split
         split_in = int(self.in_features * dropout_per)
-        self.weight_s = nn.Parameter(torch.zeros(self.out_features, split_in))
-        self.bias_s = nn.Parameter(torch.zeros(self.out_features)) if self.bias is not None else None
+        self.weight_s = nn.Parameter(torch.zeros(self.out_features, split_in, device=self.device))
+        self.bias_s = nn.Parameter(torch.zeros(self.out_features, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
         x_main, x_split = x_pair
-        result = F.linear(x_main, self.weight, self.bias)
-        result_s = F.linear(x_split, self.weight_s, self.bias_s)
-        return (result + result_s)*0.5  # additive correction
+        if self.mode == "both":
+            self.mode = ["large","small"]
+        result = 0
+        if self.mode == "large":
+            result = F.linear(x_main, self.weight, self.bias)
+        if self.mode == "small":
+            result += F.linear(x_split, self.weight_s, self.bias_s)
+        return result /2  # additive correction
+    
+    def removeweight(self):
+        del self.weight,self.bias
     
 
 
 class OutputChannelSplitConv2d(nn.Module):
-    def __init__(self, conv_layer: nn.Conv2d, dropout_per=0.5):
+    def __init__(self, conv_layer: nn.Conv2d, dropout_per=0.5, mode='both'):
         super().__init__()
         # frozen pretrained conv
         self.weight = conv_layer.weight
@@ -91,6 +115,9 @@ class OutputChannelSplitConv2d(nn.Module):
         self.padding = conv_layer.padding
         self.dilation = conv_layer.dilation
         self.groups = conv_layer.groups
+
+        self.device = self.weight.device 
+        self.mode = mode
 
         self.weight.requires_grad = False
         if self.bias is not None:
@@ -99,26 +126,37 @@ class OutputChannelSplitConv2d(nn.Module):
         # learnable split (extra out channels)
         split_out = int(self.out_channels * dropout_per)
         self.weight_s = nn.Parameter(torch.zeros(
-            split_out, self.in_channels // self.groups, *self.kernel_size
+            split_out, self.in_channels // self.groups, *self.kernel_size, device=self.device
         ))
-        self.bias_s = nn.Parameter(torch.zeros(split_out)) if self.bias is not None else None
+        self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
-        result = F.conv2d(
-            x, self.weight, self.bias,
-            stride=self.stride, padding=self.padding,
-            dilation=self.dilation, groups=self.groups
-        )
-        result_s = F.conv2d(
-            x, self.weight_s, self.bias_s,
-            stride=self.stride, padding=self.padding,
-            dilation=self.dilation, groups=self.groups
-        )
-        return result, result_s
+        if self.mode == "both":
+            self.mode = ["large","small"]
+        output = []
+        if self.mode == "large":
+            result = F.conv2d(
+                x, self.weight, self.bias,
+                stride=self.stride, padding=self.padding,
+                dilation=self.dilation, groups=self.groups
+            )
+            output.append(result)
+
+        if self.mode == "small":
+            result_s = F.conv2d(
+                x, self.weight_s, self.bias_s,
+                stride=self.stride, padding=self.padding,
+                dilation=self.dilation, groups=self.groups
+            )
+            output.append(result_s)
+        return output
+    
+    def removeweight(self):
+        del self.weight,self.bias
 
     
 class InputChannelSplitConv2d(nn.Module):
-    def __init__(self, conv_layer: nn.Conv2d, dropout_per=0.5):
+    def __init__(self, conv_layer: nn.Conv2d, dropout_per=0.5, mode='both'):
         super().__init__()
         # frozen pretrained conv
         self.weight = conv_layer.weight
@@ -132,6 +170,9 @@ class InputChannelSplitConv2d(nn.Module):
         self.dilation = conv_layer.dilation
         self.groups = conv_layer.groups
 
+        self.device = self.weight.device
+        self.mode = mode 
+
         self.weight.requires_grad = False
         if self.bias is not None:
             self.bias.requires_grad = False
@@ -139,21 +180,29 @@ class InputChannelSplitConv2d(nn.Module):
         # learnable split (extra in channels)
         split_in = int(self.in_channels * dropout_per)
         self.weight_s = nn.Parameter(torch.zeros(
-            self.out_channels, split_in // self.groups, *self.kernel_size
+            self.out_channels, split_in // self.groups, *self.kernel_size, device=self.device
         ))
-        self.bias_s = nn.Parameter(torch.zeros(self.out_channels)) if self.bias is not None else None
+        self.bias_s = nn.Parameter(torch.zeros(self.out_channels, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
         x_main, x_split = x_pair  # (main channels, split channels)
-        result = F.conv2d(
-            x_main, self.weight, self.bias,
-            stride=self.stride, padding=self.padding,
-            dilation=self.dilation, groups=self.groups
-        )
-        result_s = F.conv2d(
-            x_split, self.weight_s, self.bias_s,
-            stride=self.stride, padding=self.padding,
-            dilation=self.dilation, groups=self.groups
-        )
-        return (result + result_s)/2
+        if self.mode == "both":
+            self.mode = ["large","small"]
+        result = 0
+        if self.mode == "large":
+            result = F.conv2d(
+                x_main, self.weight, self.bias,
+                stride=self.stride, padding=self.padding,
+                dilation=self.dilation, groups=self.groups
+            )
+        if self.mode == "small":
+            result += F.conv2d(
+                x_split, self.weight_s, self.bias_s,
+                stride=self.stride, padding=self.padding,
+                dilation=self.dilation, groups=self.groups
+            )
+        return result/2
+    
+    def removeweight(self):
+        del self.weight,self.bias
 
