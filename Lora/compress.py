@@ -47,13 +47,12 @@ class OutputChannelSplitLinear(nn.Module):
         self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
-        if self.mode == "both":
-            self.mode = ["large","small"]
+        
         output = []
-        if self.mode == 'large':
+        if self.mode in ["large", "both"]:
             result = F.linear(x, self.weight, self.bias)
             output.append(result)
-        if self.mode == 'small':
+        if self.mode in ["large", "both"]:
             result_s = F.linear(x, self.weight_s, self.bias_s)
             output.append(result_s)
 
@@ -87,12 +86,11 @@ class InputChannelSplitLinear(nn.Module):
 
     def forward(self, x_pair):
         x_main, x_split = x_pair
-        if self.mode == "both":
-            self.mode = ["large","small"]
+        
         result = 0
-        if self.mode == "large":
+        if self.mode in ["large", "both"]:
             result = F.linear(x_main, self.weight, self.bias)
-        if self.mode == "small":
+        if self.mode in ["large", "both"]:
             result += F.linear(x_split, self.weight_s, self.bias_s)
         return result /2  # additive correction
     
@@ -131,10 +129,9 @@ class OutputChannelSplitConv2d(nn.Module):
         self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
-        if self.mode == "both":
-            self.mode = ["large","small"]
+        
         output = []
-        if self.mode == "large":
+        if self.mode in ["large", "both"]:
             result = F.conv2d(
                 x, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
@@ -142,7 +139,7 @@ class OutputChannelSplitConv2d(nn.Module):
             )
             output.append(result)
 
-        if self.mode == "small":
+        if self.mode in ["large", "both"]:
             result_s = F.conv2d(
                 x, self.weight_s, self.bias_s,
                 stride=self.stride, padding=self.padding,
@@ -187,16 +184,15 @@ class InputChannelSplitConv2d(nn.Module):
     def forward(self, x_pair):
         print(self.in_channels, self.out_channels)
         x_main, x_split = x_pair  # (main channels, split channels)
-        if self.mode == "both":
-            self.mode = ["large","small"]
+        
         result = 0
-        if self.mode == "large":
+        if self.mode in ["large", "both"]:
             result = F.conv2d(
                 x_main, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups
             )
-        if self.mode == "small":
+        if self.mode in ["large", "both"]:
             result += F.conv2d(
                 x_split, self.weight_s, self.bias_s,
                 stride=self.stride, padding=self.padding,
