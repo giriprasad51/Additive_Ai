@@ -217,7 +217,7 @@ class ParallelActivations(nn.Module):
         if isinstance(x, list):
             
             activation_outputs = [self.activation(tensor) for tensor in x]
-            if (not self.droupout ) and  self.activation == nn.nn.Dropout:
+            if (not self.droupout ) and  self.activation == nn.Dropout:
                 activation_outputs[1] = x[1]
             
             return activation_outputs, 
