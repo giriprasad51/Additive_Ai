@@ -49,7 +49,7 @@ class OutputChannelSplitLinear(nn.Module):
     def forward(self, x):
         
         output = []
-        if self.mode in ["small", "both"]:
+        if self.mode in ["large", "both"]:
             result = F.linear(x, self.weight, self.bias)
             output.append(result)
         if self.mode in ["small", "both"]:
@@ -85,10 +85,15 @@ class InputChannelSplitLinear(nn.Module):
         self.bias_s = nn.Parameter(torch.zeros(self.out_features, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
-        x_main, x_split = x_pair
+        if self.mode == 'both':
+            x_main, x_split = x_pair
+        if self.mode == 'large':
+            x_main = x_pair
+        if self.mode == 'small':
+             x_split = x_pair
         
         result = 0
-        if self.mode in ["small", "both"]:
+        if self.mode in ["large", "both"]:
             result = F.linear(x_main, self.weight, self.bias)
         if self.mode in ["small", "both"]:
             result += F.linear(x_split, self.weight_s, self.bias_s)
@@ -131,7 +136,7 @@ class OutputChannelSplitConv2d(nn.Module):
     def forward(self, x):
         
         output = []
-        if self.mode in ["small", "both"]:
+        if self.mode in ["large", "both"]:
             result = F.conv2d(
                 x, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
@@ -184,10 +189,15 @@ class InputChannelSplitConv2d(nn.Module):
 
     def forward(self, x_pair):
         # print(self.in_channels, self.out_channels)
-        x_main, x_split = x_pair  # (main channels, split channels)
+        if self.mode == 'both':
+            x_main, x_split = x_pair
+        if self.mode == 'large':
+            x_main = x_pair
+        if self.mode == 'small':
+             x_split = x_pair
         
         result = 0
-        if self.mode in ["small", "both"]:
+        if self.mode in ["large", "both"]:
             result = F.conv2d(
                 x_main, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
