@@ -206,3 +206,24 @@ class InputChannelSplitConv2d(nn.Module):
     def removeweight(self):
         del self.weight,self.bias
 
+class ParallelActivations(nn.Module):
+    def __init__(self, activation =nn.ReLU(), dropout = False):
+        super(ParallelActivations, self).__init__()
+        self.activation = activation
+        self.droupout = dropout
+
+    def forward(self, x):
+       
+        if isinstance(x, list):
+            
+            activation_outputs = [self.activation(tensor) for tensor in x]
+            if (not self.droupout ) and  self.activation == nn.nn.Dropout:
+                activation_outputs[1] = x[1]
+            
+            return activation_outputs, 
+                
+        elif isinstance(x, torch.Tensor):
+            return self.activation(x)
+        else:
+            raise TypeError("Input must be a Tensor or a list of Tensors")
+
