@@ -185,6 +185,7 @@ class InputChannelSplitConv2d(nn.Module):
         self.bias_s = nn.Parameter(torch.zeros(self.out_channels, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
+        print(self.in_channels, self.out_channels)
         x_main, x_split = x_pair  # (main channels, split channels)
         if self.mode == "both":
             self.mode = ["large","small"]
@@ -201,7 +202,7 @@ class InputChannelSplitConv2d(nn.Module):
                 stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups
             )
-        return result/2
+        return result*0.5
     
     def removeweight(self):
         del self.weight,self.bias
