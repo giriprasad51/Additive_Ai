@@ -49,13 +49,13 @@ class OutputChannelSplitLinear(nn.Module):
     def forward(self, x):
         
         output = []
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result = F.linear(x, self.weight, self.bias)
             output.append(result)
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result_s = F.linear(x, self.weight_s, self.bias_s)
             output.append(result_s)
-
+        print(len(output))
         return output
     
     def removeweight(self):
@@ -88,9 +88,9 @@ class InputChannelSplitLinear(nn.Module):
         x_main, x_split = x_pair
         
         result = 0
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result = F.linear(x_main, self.weight, self.bias)
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result += F.linear(x_split, self.weight_s, self.bias_s)
         return result /2  # additive correction
     
@@ -131,7 +131,7 @@ class OutputChannelSplitConv2d(nn.Module):
     def forward(self, x):
         
         output = []
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result = F.conv2d(
                 x, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
@@ -139,13 +139,14 @@ class OutputChannelSplitConv2d(nn.Module):
             )
             output.append(result)
 
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result_s = F.conv2d(
                 x, self.weight_s, self.bias_s,
                 stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups
             )
             output.append(result_s)
+        print(len(output))
         return output
     
     def removeweight(self):
@@ -186,13 +187,13 @@ class InputChannelSplitConv2d(nn.Module):
         x_main, x_split = x_pair  # (main channels, split channels)
         
         result = 0
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result = F.conv2d(
                 x_main, self.weight, self.bias,
                 stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups
             )
-        if self.mode in ["large", "both"]:
+        if self.mode in ["small", "both"]:
             result += F.conv2d(
                 x_split, self.weight_s, self.bias_s,
                 stride=self.stride, padding=self.padding,
@@ -216,10 +217,11 @@ class ParallelActivations(nn.Module):
             activation_outputs = [self.activation(tensor) for tensor in x]
             if (not self.droupout ) and  self.activation == nn.Dropout:
                 activation_outputs[1] = x[1]
-            
-            return activation_outputs, 
+            print(len(activation_outputs))
+            return activation_outputs
                 
         elif isinstance(x, torch.Tensor):
+            print(len(activation_outputs))
             return self.activation(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
