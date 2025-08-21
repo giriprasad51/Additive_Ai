@@ -221,7 +221,7 @@ class ParallelActivations(nn.Module):
             return activation_outputs
                 
         elif isinstance(x, torch.Tensor):
-            print(len(activation_outputs))
+            # print(len(activation_outputs))
             return self.activation(x)
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
