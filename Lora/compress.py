@@ -44,6 +44,7 @@ class OutputChannelSplitLinear(nn.Module):
         # learnable split
         split_out = int(self.out_features * dropout_per)
         self.weight_s = nn.Parameter(torch.zeros(split_out, self.in_features, device=self.device))
+        nn.init.kaiming_uniform_(self.weight_s, a=math.sqrt(5))
         self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
@@ -82,6 +83,7 @@ class InputChannelSplitLinear(nn.Module):
         # learnable split
         split_in = int(self.in_features * dropout_per)
         self.weight_s = nn.Parameter(torch.zeros(self.out_features, split_in, device=self.device))
+        nn.init.kaiming_uniform_(self.weight_s, a=math.sqrt(5))
         self.bias_s = nn.Parameter(torch.zeros(self.out_features, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
@@ -134,6 +136,7 @@ class OutputChannelSplitConv2d(nn.Module):
         self.weight_s = nn.Parameter(torch.zeros(
             split_out, self.in_channels // self.groups, *self.kernel_size, device=self.device
         ))
+        nn.init.kaiming_uniform_(self.weight_s, a=math.sqrt(5))
         self.bias_s = nn.Parameter(torch.zeros(split_out, device=self.device)) if self.bias is not None else None
 
     def forward(self, x):
@@ -188,6 +191,7 @@ class InputChannelSplitConv2d(nn.Module):
         self.weight_s = nn.Parameter(torch.zeros(
             self.out_channels, split_in // self.groups, *self.kernel_size, device=self.device
         ))
+        nn.init.kaiming_uniform_(self.weight_s, a=math.sqrt(5))
         self.bias_s = nn.Parameter(torch.zeros(self.out_channels, device=self.device)) if self.bias is not None else None
 
     def forward(self, x_pair):
