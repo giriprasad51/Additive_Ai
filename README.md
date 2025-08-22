@@ -33,7 +33,6 @@ structs = list(itertools.product([ False, True], repeat=6))
 moe_layer_1 = DeepseekV2DecoderLayer(config, 1)
 
 for i in range(len(structs)):
-    
   moe_layer_1.mlp.experts[i] = DeepseekV2MLPSplit(moe_layer_1.mlp.experts[0],num_splits=7 struct=structs[i])
 ```
 
