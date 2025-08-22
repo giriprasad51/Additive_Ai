@@ -21,8 +21,21 @@ we introduce a  model compression  and training booster inspired by the concept 
 Experiment 1: In this experiment, we explore model compression using Automatic Relevance Determination (ARD). First, we replace standard model layers with ARD layers and train for a short duration (1–2 epochs) to induce sparsity. Next, we compress the model by reducing its dimensionality, selecting weights based on their ARD scores (combining both strong and weak weights). The compressed model is then training from scarch/fine-tuned on the full dataset, and we evaluate the impact of different dropout percentages on accuracy.
 
 Experiment 2: In this experiment compressed/small models (with reduced dimensionality) with sum of dropout percentage is 100% are trained in parallel on data clusters for a few epochs, then synchronized to a larger base model rest of epochs larger model will train on pipeline or zero offload training. This approach accelerates early-stage convergence.
+# Code
+```py
+from transformers import  AutoConfig
+from Additive_Ai.transformerlayers import  DeepseekV2MLPSplit
+from Additive_Ai.DeepSeek_V2.modeling_deepseek import DeepseekV2DecoderLayer, DeepseekV2Config 
+import itertools
 
+config = AutoConfig.from_pretrained('DeepSeek_V2',trust_remote_code=True)
+structs = list(itertools.product([ False, True], repeat=6))
+moe_layer_1 = DeepseekV2DecoderLayer(config, 1)
 
+for i in range(len(structs)):
+    
+  moe_layer_1.mlp.experts[i] = DeepseekV2MLPSplit(moe_layer_1.mlp.experts[0],num_splits=7 struct=structs[i])
+```
 
 
 # MLP
@@ -52,3 +65,5 @@ Experiment 2: In this experiment compressed/small models (with reduced dimension
     
   </tr>
  </table>
+
+
