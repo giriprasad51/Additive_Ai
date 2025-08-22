@@ -55,7 +55,7 @@ class OutputChannelSplitLinear(nn.Module):
         if self.mode in ["small", "both"]:
             result_s = F.linear(x, self.weight_s, self.bias_s)
             output.append(result_s)
-        # print(len(output))
+        # print(output[0].shape, output[-1].shape)
         return output
     
     def removeweight(self):
@@ -90,14 +90,17 @@ class InputChannelSplitLinear(nn.Module):
         if self.mode == 'large':
             x_main = x_pair[0]
         if self.mode == 'small':
-             x_split = x_pair[0]
+            x_split = x_pair[0]
         
         result = 0
         if self.mode in ["large", "both"]:
             result = F.linear(x_main, self.weight, self.bias)
+            
         if self.mode in ["small", "both"]:
             result += F.linear(x_split, self.weight_s, self.bias_s)
-        return result /2  # additive correction
+
+        # print(result.shape)
+        return result*0.5 if self.mode == 'both' else result  # additive correction
     
     def removeweight(self):
         del self.weight,self.bias
@@ -209,7 +212,7 @@ class InputChannelSplitConv2d(nn.Module):
                 stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups
             )
-        return result*0.5
+        return result*0.5 if self.mode == 'both' else result 
     
     def removeweight(self):
         del self.weight,self.bias
@@ -227,7 +230,7 @@ class ParallelActivations(nn.Module):
             activation_outputs = [self.activation(tensor) for tensor in x]
             if (not self.droupout ) and  self.activation == nn.Dropout:
                 activation_outputs[1] = x[1]
-            # print(len(activation_outputs))
+            # print(activation_outputs[0].shape, activation_outputs[-1].shape)
             return activation_outputs
                 
         elif isinstance(x, torch.Tensor):
