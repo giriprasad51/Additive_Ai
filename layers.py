@@ -546,10 +546,11 @@ class ParallelMaxPool2d(nn.Module):
         
 class ClassifierSplit(nn.Module):
     def __init__(self, classifier, num_splits=None, struct=None):
-        self.classifier = nn.Sequential( InputChannelSplitLinear(classifier[0]),
+        super(ClassifierSplit, self).__init__()
+        self.classifier = nn.Sequential( InputChannelSplitLinear(classifier[0], num_splits=self.num_splits, combine=False, struct=self.struct),
             ParallelActivations(classifier[1]),
             ParallelActivations(classifier[2]),
-            OutputChannelSplitLinear(classifier[3]),
+            OutputChannelSplitLinear(classifier[3], num_splits=self.num_splits, combine=True, struct=self.struct),
         )
 
     def forward(self, x):
