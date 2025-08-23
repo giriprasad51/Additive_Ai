@@ -544,3 +544,17 @@ class ParallelMaxPool2d(nn.Module):
         else:
             raise TypeError("Input must be a Tensor or a list of Tensors")
         
+class ClassifierSplit(nn.Module):
+    def __init__(self, classifier, num_splits=None, struct=None):
+        self.classifier = nn.Sequential( InputChannelSplitLinear(classifier[0]),
+            ParallelActivations(classifier[1]),
+            ParallelActivations(classifier[2]),
+            OutputChannelSplitLinear(classifier[3]),
+        )
+
+    def forward(self, x):
+        return self.classifier(x)
+        
+
+    
+        
