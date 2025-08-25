@@ -46,16 +46,10 @@ class TransformerGenerator(nn.Module):
         # Project to output dimension
         raw_output = self.output_proj(transformer_output)  # (b, max_length, output_dim)
         
-        # Create variable length sequences
-        sequences = []
-        masks = []
-        for i, length in enumerate(target_lengths):
-            seq = raw_output[i, :length, :]
-            sequences.append(seq)
-            mask = torch.ones(length, dtype=torch.bool, device=z.device)
-            masks.append(mask)
         
-        return sequences, masks
+            
+        
+        return raw_output
     
 # generator = TransformerGenerator(latent_dim=512).to(device)
 # batch_size = 64
