@@ -29,7 +29,8 @@ moe_layer_1 = DeepseekV2DecoderLayer(config, 1)
 for i in range(len(structs)):
   moe_layer_1.mlp.experts[i] = DeepseekV2MLPSplit(moe_layer_1.mlp.experts[0],num_splits=7 struct=structs[i])
 ```
-
+# Test on Vgg19
+https://www.kaggle.com/code/giriprasad512/vgg19-moe-structure-as-expect
 
 # MLP
 <table>
