@@ -555,7 +555,81 @@ class ClassifierSplit(nn.Module):
 
     def forward(self, x):
         return self.classifier(x)
+
+
+
+class FactorizedLinear(nn.Module):
+
+    def __init__(self, linear,act=None):
+
+        super().__init__()
         
+        self.act = act
+        self.in_features = linear.in_features
+        self.out_features = linear.out_features
+
+        W = linear.weight.detach()
+
+        B, C, D = self.default_factorizer(W)
+
+        self.B = nn.Parameter(B)
+        self.C = nn.Parameter(C)
+        self.D = nn.Parameter(D)
+
+        if linear.bias is not None:
+            self.bias = nn.Parameter(linear.bias.detach().clone())
+        else:
+            self.bias = None
+
+    @staticmethod
+    def default_factorizer(W):
+
+        n, m = W.shape
+        device = W.device
+
+        B = nn.Parameter(torch.randn(n, m, device=device) * 0.1)
+        C = nn.Parameter(torch.randn(m, n, device=device) * 0.1)
+        D = nn.Parameter(torch.randn(n, m, device=device) * 0.1)
+
+        optimizer = torch.optim.LBFGS(
+            [B, C, D],
+            max_iter=20,
+            line_search_fn="strong_wolfe"
+        )
+
+        def closure():
+            optimizer.zero_grad()
+
+            W_pred = B @ C @ D
+
+            loss = ((W_pred - W) ** 2).sum()
+
+            loss.backward()
+
+            return loss
+
+        for i in range(100):
+            loss = optimizer.step(closure)
+
+        return B.detach(), C.detach(), D.detach()
+
+    @property
+    def reconstructweight(self):
+        return self.B @ self.C @ self.D
+
+    def forward(self, x):
+
+        x = x @ self.D.T
+        if self.act is not None:
+            x = self.act(x)
+        x = x @ self.C.T
+        if self.act is not None:
+            x = self.act(x)
+        x = x @ self.B.T
+    
+        if self.bias is not None:
+            x = x + self.bias
+    
+        return x
 
     
-        
