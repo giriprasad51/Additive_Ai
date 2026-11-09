@@ -434,7 +434,7 @@ class InputChannelSplitLinear(nn.Module):
         if isinstance(x, list):
             # print("check-point2",x[1])
             split_sizes = x[1].tolist()
-            self.change_split_channels(split_channels=split_sizes)
+            self.change_split_channels(split_sizes=split_sizes)
             split_inputs = x[0] if type(x[0]) is list else torch.split(x[0], self.split_sizes, dim=1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         else:
