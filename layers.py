@@ -18,7 +18,7 @@ class OutputChannelSplitConv2d(nn.Module):
         output = parallel_conv(x)
         print("Output shape:", output.shape)
     """
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, split_combine=None random_split=False):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, split_combine=None, random_split=False):
         super(OutputChannelSplitConv2d, self).__init__()
         # assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
 
@@ -61,9 +61,9 @@ class OutputChannelSplitConv2d(nn.Module):
 
         split_sizes = self.split_channels
         
-        if self.split_combine:
+        if self.:
             split_outputs = torch.cat(split_outputs, dim=1)
-            split_sizes = self.split_combine
+            split_sizes = self.
             split_outputs = torch.split(split_outputs, split_sizes, dim=1)
             self.combine = False
             
@@ -303,7 +303,7 @@ class InputChannelSplitConv1D(nn.Module):
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, split_combine=None, struct=None, random_split=False):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, =None, struct=None, random_split=False):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
