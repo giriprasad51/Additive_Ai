@@ -303,7 +303,7 @@ class InputChannelSplitConv1D(nn.Module):
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, =None, struct=None, random_split=False):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, split_combine=None, struct=None, random_split=False):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
