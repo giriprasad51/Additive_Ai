@@ -518,7 +518,79 @@ class ParallelDropout(nn.Module):
         elif isinstance(x, torch.Tensor):
             return self.dropout(x)
         else:
-            raise TypeError("Input must be a Tensor or a list of Tensors")  
+            raise TypeError("Input must be a Tensor or a list of Tensors")
+
+class ParallelBatchNorm2d(nn.Module):
+    """
+    Applies BatchNorm2d independently or collectively across a list of split tensor chunks 
+    or a standard tensor, maintaining correct channel-wise statistics and gradients.
+    """
+    def __init__(self, bn_layer: nn.BatchNorm2d, num_splits=4, split_channels=None):
+        super().__init__()
+        self.device = bn_layer.weight.device if bn_layer.weight is not None else torch.device("cpu")
+        self.num_splits = num_splits
+        self.num_features = bn_layer.num_features
+        self.eps = bn_layer.eps
+        self.momentum = bn_layer.momentum
+        self.affine = bn_layer.affine
+        self.track_running_stats = bn_layer.track_running_stats
+
+        rem = self.num_features % num_splits
+        if split_channels:
+            self.split_channels = split_channels
+        else:
+            self.split_channels = [
+                self.num_features // num_splits + (1 if i < rem else 0) 
+                for i in range(num_splits)
+            ]
+
+        # Create individual BatchNorm2d layers for each split channel slice
+        self.split_bns = nn.ModuleList([
+            nn.BatchNorm2d(
+                num_features=self.split_channels[i],
+                eps=self.eps,
+                momentum=self.momentum,
+                affine=self.affine,
+                track_running_stats=self.track_running_stats
+            ).to(self.device)
+            for i in range(len(self.split_channels))
+        ])
+
+        if self.affine and bn_layer.weight is not None:
+            self.copy_weights_from(bn_layer)
+
+    def forward(self, x):
+        # Handle list of tensors (e.g., from InputChannelSplitConv2d / OutputChannelSplitConv2d)
+        if isinstance(x, (list, tuple)):
+            tensors = x[0] if isinstance(x[0], list) else x
+            out_tensors = [bn(t) for bn, t in zip(self.split_bns, tensors)]
+            
+            # Preserve metadata structure if passed as [tensors, metadata]
+            if isinstance(x, list) and len(x) > 1 and not isinstance(x[0], list):
+                return [out_tensors, x[1]]
+            return out_tensors
+        elif isinstance(x, torch.Tensor):
+            # If standard tensor input, split it first, apply respective BNs, then cat back
+            split_inputs = torch.split(x, self.split_channels, dim=1)
+            out_tensors = [bn(t) for bn, t in zip(self.split_bns, split_inputs)]
+            return torch.cat(out_tensors, dim=1)
+        else:
+            raise TypeError("Input must be a Tensor or a list/tuple of Tensors")
+
+    def copy_weights_from(self, bn_layer):
+        with torch.no_grad():
+            start_idx = 0
+            for i, bn in enumerate(self.split_bns):
+                end_idx = start_idx + self.split_channels[i]
+                if bn.weight is not None and bn_layer.weight is not None:
+                    bn.weight.copy_(bn_layer.weight[start_idx:end_idx])
+                if bn.bias is not None and bn_layer.bias is not None:
+                    bn.bias.copy_(bn_layer.bias[start_idx:end_idx])
+                if bn.track_running_stats and bn_layer.track_running_stats:
+                    bn.running_mean.copy_(bn_layer.running_mean[start_idx:end_idx])
+                    bn.running_var.copy_(bn_layer.running_var[start_idx:end_idx])
+                    bn.num_batches_tracked.copy_(bn_layer.num_batches_tracked)
+                start_idx = end_idx
 
 class ParallelMaxPool2d(nn.Module):
     def __init__(self, pool_layer: nn.MaxPool2d, combine=None):
