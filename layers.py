@@ -61,9 +61,9 @@ class OutputChannelSplitConv2d(nn.Module):
 
         split_sizes = self.split_channels
         
-        if self.:
+        if self.split_combine:
             split_outputs = torch.cat(split_outputs, dim=1)
-            split_sizes = self.
+            split_sizes = self.split_combine
             split_outputs = torch.split(split_outputs, split_sizes, dim=1)
             self.combine = False
             
