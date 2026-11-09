@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from maths import sum_random_nums_n, moe_masked
+from .maths import sum_random_nums_n, moe_masked
 
 
 # For Conv2d
