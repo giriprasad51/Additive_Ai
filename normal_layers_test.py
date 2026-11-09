@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from layers import (OutputChannelSplitConv2d, InputChannelSplitConv2d, 
                     OutputChannelSplitLinear, InputChannelSplitLinear, 
-                    ParallelMaxPool2d, InputChannelSplitConv1D, OutputChannelSplitConv1D)
+                    InputChannelSplitConv1D, OutputChannelSplitConv1D)
 from maths import sum_random_nums_n
 import pytest
 import copy
