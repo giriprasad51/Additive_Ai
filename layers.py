@@ -18,7 +18,7 @@ class OutputChannelSplitConv2d(nn.Module):
         output = parallel_conv(x)
         print("Output shape:", output.shape)
     """
-    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, random_split=False):
+    def __init__(self, conv_layer: nn.Conv2d, num_splits=4, combine=True, split_channels=None, split_combine=None random_split=False):
         super(OutputChannelSplitConv2d, self).__init__()
         # assert conv_layer.out_channels % num_splits == 0, "Output channels must be divisible by num_splits"
 
@@ -36,6 +36,7 @@ class OutputChannelSplitConv2d(nn.Module):
         else:
             self.split_channels = [self.out_channels // num_splits + (1 if i < self.rem else 0) for i in range(num_splits) ]
         self.combine = combine
+        self.split_combine = split_combine
         self.random_split = random_split
 
         self.split_layers = nn.ModuleList([
@@ -59,10 +60,18 @@ class OutputChannelSplitConv2d(nn.Module):
             #     print(layer.weight.shape)
 
         split_sizes = self.split_channels
-        if self.random_split:
+        
+        if self.split_combine:
+            split_outputs = torch.cat(split_outputs, dim=1)
+            split_sizes = self.split_combine
+            split_outputs = torch.split(split_outputs, split_sizes, dim=1)
+            self.combine = False
+            
+        elif self.random_split:
             split_outputs = torch.cat(split_outputs, dim=1)
             split_sizes = sum_random_nums_n(split_outputs.shape[1])
             split_outputs = torch.split(split_outputs, split_sizes, dim=1)
+            self.combine = False
 
         return torch.cat(split_outputs, dim=1) if self.combine else [split_outputs, torch.tensor(split_sizes)]
     
@@ -294,7 +303,7 @@ class InputChannelSplitConv1D(nn.Module):
 
 
 class OutputChannelSplitLinear(nn.Module):
-    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, struct=None, random_split=False):
+    def __init__(self, linear_layer: nn.Linear, num_splits=4, combine = True, split_channels=None, split_combine=None, struct=None, random_split=False):
         super(OutputChannelSplitLinear, self).__init__()
         # assert linear_layer.out_features % num_splits == 0, "Output features must be divisible by num_splits"
 
@@ -314,6 +323,8 @@ class OutputChannelSplitLinear(nn.Module):
             for i in reversed(range(len(self.struct))):  # Start from end
                 if self.struct[i]:
                     self.split_sizes[i] += self.split_sizes.pop(i + 1)
+        self.split_combine = split_combine
+        
 
         self.combine = combine
         self.random_split = random_split
@@ -336,10 +347,17 @@ class OutputChannelSplitLinear(nn.Module):
         else:
             split_outputs = [layer(x) for layer in self.split_layers]
         split_sizes = self.split_sizes
+
+        if self.split_combine:
+            split_outputs = torch.cat(split_outputs, dim=1)
+            split_sizes = self.split_combine
+            split_outputs = torch.split(split_outputs, split_sizes, dim=-1)
+            self.combine = False
         if self.random_split:
             split_outputs = torch.cat(split_outputs, dim=-1)
             split_sizes = sum_random_nums_n(split_outputs.shape[1])
             split_outputs = torch.split(split_outputs, split_sizes, dim=-1)
+            self.combine = False
 
         return torch.cat(split_outputs, dim=-1)  if self.combine else [split_outputs, torch.tensor(split_sizes)] # Concatenate outputs
 
