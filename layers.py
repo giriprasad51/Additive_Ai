@@ -42,7 +42,7 @@ class OutputChannelSplitConv2d(nn.Module):
         self.split_layers = nn.ModuleList([
             nn.Conv2d(self.in_channels,self.split_channels[i] , kernel_size=self.kernel_size,
                       stride=self.stride, padding=self.padding).to(self.device)  # Move to the same device
-            for i in range(num_splits)
+            for i in range(len(self.split_sizes))
         ])
 
         self.copy_weights_from()
