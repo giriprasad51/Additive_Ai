@@ -115,6 +115,7 @@ class InputChannelSplitConv2d(nn.Module):
         self.weight = conv_layer.weight
         self.bias = conv_layer.bias
         self.device = conv_layer.weight.device
+        print(self.device)
         self.num_splits = num_splits
         self.in_channels = conv_layer.in_channels
         self.out_channels = conv_layer.out_channels
@@ -151,6 +152,7 @@ class InputChannelSplitConv2d(nn.Module):
             # print("check-point2",x[1])
             split_sizes = x[1].tolist()
             self.change_split_channels(split_channels=split_sizes)
+            print(self.device)
             split_inputs = x[0] if  isinstance(x[0], list) else torch.split(x[0], split_sizes, dim=1)  # Corrected to ensure proper channel allocation
             split_outputs = [layer(split_inputs[i]) for i, layer in enumerate(self.split_layers)]
         else:
