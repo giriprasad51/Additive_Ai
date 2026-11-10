@@ -599,11 +599,14 @@ class ParallelBatchNorm2d(nn.Module):
 
     def forward(self, x):
         if isinstance(x, (list, tuple)):
-            tensors = x[0] if isinstance(x[0], list) else x
-            out_tensors = [bn(t) for bn, t in zip(self.split_bns, tensors)]
-            if isinstance(x, list) and len(x) > 1 and not isinstance(x[0], list):
-                return [out_tensors, x[1]]
-            return out_tensors
+            # print(len(x[0]), type(x[0]), type(x[0][0]) ,x[1])
+            if isinstance(x[0], (list, tuple) ):
+                # self.change_split_channels(x[1].tolist(), num_splits=len(x[1].tolist()))
+                split_outputs = [layer(x1) for x1,layer in zip(x[0], self.split_bns)]
+            else:
+                split_outputs = [layer(x1) for x1,layer in zip(x, self.split_bns)]
+            
+            return [split_outputs,x[1]]
         elif isinstance(x, torch.Tensor):
             split_inputs = torch.split(x, self.split_channels, dim=1)
             out_tensors = [bn(t) for bn, t in zip(self.split_bns, split_inputs)]
